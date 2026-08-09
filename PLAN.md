@@ -284,8 +284,8 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: manual runs, transcripts saved; independently confirm on disk /
     `git log` that the blocked commit never happened
   - Deps: 005, 010
-- [ ] **CHUNK-014** — Spike: guard-abort vs. ordinary failure — is the signal
-  distinguishable from the loop's side?
+- [x] **CHUNK-014** — Spike: guard-abort vs. ordinary failure — is the signal
+  distinguishable from the loop's side? ✅ 2026-08-09
   - Acceptance: trigger a hook block deliberately and capture exactly what the
     loop sees (exit code, stderr text, stdout shape) vs. a normal verification
     failure and a timeout; document a reliable detection rule (or conclude

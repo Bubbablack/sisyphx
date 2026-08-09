@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX
+configfile: pyproject.toml
+collected 2 items
+
+test_calc.py ..                                                          [100%]
+
+============================== 2 passed in 0.02s ===============================
+   Building loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk014/normal_b
+      Built loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk014/normal_b
+Uninstalled 1 package in 1ms
+Installed 1 package in 3ms
