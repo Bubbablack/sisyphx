@@ -1,0 +1,11 @@
+[project]
+name = "sisyphx"
+version = "0.1.0"
+description = "A Python-based control and reliability framework for AI coding agents."
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["phase1/test_loop.py", "phase1/tests/test_run_log.py"]

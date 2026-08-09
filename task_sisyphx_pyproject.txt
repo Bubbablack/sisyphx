@@ -1,0 +1,11 @@
+Create a top-level `pyproject.toml` for the SisyphX project in this repository.
+
+Requirements:
+- Project name must be `sisyphx` and version `0.1.0`.
+- Include a description of the project.
+- Set `requires-python` to `>=3.11`.
+- Include `pytest` as a dev dependency in a `dev` dependency group.
+- Configure pytest `testpaths` so that `uv run pytest` from the repository root
+  discovers and runs `phase1/test_loop.py` and `phase1/tests/test_run_log.py`.
+- Do not modify any existing files except to create the new `pyproject.toml`.
+- Do not delete or move any existing source, test, or notes files.
