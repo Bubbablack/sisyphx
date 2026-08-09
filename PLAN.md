@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 1 complete ✅ — ready to scope Phase 2
+- **Current phase:** Phase 2 scoped — starting at CHUNK-013 (spikes first)
 - **Last updated:** 2026-08-09
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -262,10 +262,121 @@ repo — plain Python, subprocess, git, files. No Pydantic/SQLite/state machines
   - Deps: 010, 011
   - See `pyproject.toml`, `uv.lock`, and `phase1/notes/CHUNK-012.md`
 
-### Phase 2+ — Grow the framework outward (deferred — will be re-scoped after Phase 1)
+### Phase 2 — Make the loop untrickable and unstickable
 
-Not detailed yet, on purpose — Phase 1 will teach us things that should inform
-this. Rough direction, mapping loosely to the original spec's milestones:
+Goal: close the trust gaps Phase 1's real runs demonstrated (semantic-contract
+violation, agent-authored commits, guard-abort blindness) and replace
+byte-identical stuck detection with real failure signatures and a minimal
+recovery ladder. Scope is deliberately narrow: **Assurance + Recovery only** —
+no ontology, no learning plane, no Spec Kit/APM. Structured as Phase 0 was:
+**spike/confirm chunks first (013–016), implementation only after each spike's
+findings are recorded.** Every implementation chunk must be verified by both
+unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
+
+#### Spikes — learn and confirm first (no framework code)
+
+- [ ] **CHUNK-013** — Spike: can a `PreToolUse`/`exec` hook block `git` commands?
+  - Acceptance: empirically confirm whether a hook in `.devin/hooks.v1.json`
+    can block `git commit`/`git push` in `--permission-mode bypass`; document
+    exact behavior on block (does it abort the whole session per CHUNK-005, or
+    does bypass mode skip hooks entirely?); confirm allowed non-git exec still
+    passes. Findings note committed to `phase2/notes/CHUNK-013.md`.
+  - Verify: manual runs, transcripts saved; independently confirm on disk /
+    `git log` that the blocked commit never happened
+  - Deps: 005, 010
+- [ ] **CHUNK-014** — Spike: guard-abort vs. ordinary failure — is the signal
+  distinguishable from the loop's side?
+  - Acceptance: trigger a hook block deliberately and capture exactly what the
+    loop sees (exit code, stderr text, stdout shape) vs. a normal verification
+    failure and a timeout; document a reliable detection rule (or conclude
+    there isn't one and what proxy to use). Findings in
+    `phase2/notes/CHUNK-014.md`.
+  - Verify: manual runs, at least 2 repetitions per scenario to check
+    consistency
+  - Deps: 013
+- [ ] **CHUNK-015** — Spike: failure-output normalization study
+  - Acceptance: collect the real `verify_output` artifacts already in
+    `.agent-state`/notes plus fresh deliberate failures (pytest fail, import
+    error, timeout, guard abort); identify which volatile parts (timestamps,
+    durations, tmp paths, object addresses, line numbers?) must be normalized
+    for a stable `FailureSignature`; write the proposed normalization rules and
+    hash recipe in `phase2/notes/CHUNK-015.md` **before** any implementation.
+  - Verify: manual review; rules demonstrated on ≥4 real captured outputs
+    (same failure twice → same normalized form; different failures → different)
+  - Deps: —
+- [ ] **CHUNK-016** — Spike: test-tamper detection ground truth
+  - Acceptance: enumerate, from real diffs, what "tampering" looks like —
+    rerun a CHUNK-010-style contradictory task and capture the agent's diff;
+    define which paths/patterns a tamper guard must flag (test files, verify
+    command config, conftest, pytest config) and which legitimate edits it must
+    not flag. Findings in `phase2/notes/CHUNK-016.md`.
+  - Verify: manual run + review of captured diffs
+  - Deps: 010
+
+#### Implementation — only after the spikes above are recorded
+
+- [ ] **CHUNK-017** — `FailureSignature` hashing
+  - Acceptance: `phase2/failure_signature.py` implementing CHUNK-015's recorded
+    rules: normalize verify output → stable hash; classify failure kind
+    (verify-fail / timeout / guard-abort / agent-error) using CHUNK-014's
+    detection rule
+  - Verify: `pytest` unit tests built from the real captured outputs of
+    CHUNK-015 (same failure twice → equal signatures; distinct failures →
+    distinct); wired into nothing yet
+  - Deps: 014, 015
+- [ ] **CHUNK-018** — Loop uses signatures for stuck detection + failure classes
+  - Acceptance: `loop.py` replaces byte-identical comparison with
+    `FailureSignature`; guard-aborts skip the "same prompt retry" rung and
+    stop (or escalate) immediately per CHUNK-005's finding; run log gains
+    `failure_signature` and `failure_kind` fields
+  - Verify: `pytest` (stubbed) + one real run where two failures differing only
+    in volatile output (e.g. durations) are correctly detected as identical
+  - Deps: 017
+- [ ] **CHUNK-019** — Commit integrity guard
+  - Acceptance: per CHUNK-013's findings, either a hook that blocks
+    agent-initiated `git commit`/`push`, or (if hooks can't in bypass mode) a
+    post-iteration commit audit: loop records HEAD before the agent runs and
+    flags/handles any commits it didn't author itself
+  - Verify: `pytest` + one real adversarial run where the task explicitly asks
+    the agent to `git commit` — the loop must prevent or detect it
+  - Deps: 013
+- [ ] **CHUNK-020** — Test-tamper guard (detection layer)
+  - Acceptance: post-iteration `git diff` scan per CHUNK-016's recorded
+    patterns; edits to protected paths (tests, verify config) fail the
+    iteration with a distinct failure kind unless the task file explicitly
+    allowlists them
+  - Verify: `pytest` on the diff scanner + one real rerun of the CHUNK-010
+    contradictory task — the `return x + 2`-style tamper must now be caught
+  - Deps: 016, 018
+- [ ] **CHUNK-021** — Minimal recovery ladder
+  - Acceptance: explicit, small policy in the loop keyed on failure kind +
+    signature repetition: (1) new signature → feed exact evidence (current
+    behavior); (2) repeated signature → escalate prompt with a targeted
+    "investigate before editing" instruction, once; (3) repeated again or
+    guard-abort/tamper → stop with a generated escalation brief
+    (`.agent-state/escalation.md`: task, iterations, signatures, last diff)
+  - Verify: `pytest` on the policy (pure function: history → action) + one
+    real forced-unsolvable run producing a readable escalation brief
+  - Deps: 018, 020
+- [ ] **CHUNK-022** — `EventStore` retrofit (append-only, SQLite)
+  - Acceptance: `phase2/event_store.py` — append-only events table; loop emits
+    events (iteration started/finished, verify result, guard trip, recovery
+    action, stop) alongside the existing JSONL log, which stays; schema covers
+    only fields the loop actually has, no speculative domain models
+  - Verify: `pytest` (round-trip, append-only enforced — no update/delete
+    API) + one real run leaving a queryable event trail
+  - Deps: 018
+- [ ] **CHUNK-023** — Retro: Phase 2 findings + Phase 3 scoping
+  - Acceptance: PLAN.md Status/Decision-log updated with what the guards and
+    ladder caught in real runs; open questions resolved or explicitly carried
+    forward; Phase 3 scoped from evidence
+  - Verify: manual review
+  - Deps: 017–022
+
+### Phase 3+ — Grow the framework outward (deferred — will be re-scoped after Phase 2)
+
+Not detailed yet, on purpose. Rough direction, mapping loosely to the original
+spec's milestones:
 
 - Formalize contracts: Pydantic domain models, `EventStore`, chunk/learning state
   machines — *retrofitted around what Phase 1 actually needed*, not designed
@@ -304,6 +415,7 @@ this. Rough direction, mapping loosely to the original spec's milestones:
 | 2026-08-08 | CHUNK-005 confirmed the real hook JSON schema (`write`/`edit` → `file_path`; `exec` → `command`) and that guards work correctly, but discovered a hook block **terminates the entire session immediately** (exit 1, no agent narration at all) rather than letting the agent continue past the rejected action. Recovery policy must treat guard-triggered aborts as a distinct, more serious failure category than ordinary verification failures. |
 | 2026-08-08 | CHUNK-010 real run: the agent **violated the semantic contract** of `add_one` (changed it to `return x + 2`) to pass a contradictory test, proving that verification needs more than just the project's own test suite. A follow-up forced-unsolvable run halted at `max_iterations` as required. |
 | 2026-08-08 | CHUNK-010 unexpected finding: in `--permission-mode bypass` the agent can run `git commit` on its own, creating commits outside the loop's control. Phase 2 needs a guard (git command hook or post-iteration commit audit) to prevent or detect agent-authored commits. |
+| 2026-08-09 | Phase 2 scoped as a narrow Assurance + Recovery slice ("make the loop untrickable and unstickable"): guards for the failure modes CHUNK-010 actually demonstrated, `FailureSignature` + minimal recovery ladder, `EventStore` retrofit. Spike chunks (013–016) confirm behavior empirically before any implementation (017–022), mirroring the Phase 0 approach. Ontology, learning plane, Spec Kit/APM, promotion, and durability all deferred to Phase 3+. |
 | 2026-08-09 | CHUNK-012: SisyphX repo initialized with root `.gitignore` that excludes embedded demo repos (`phase0/scratch/`, `phase1/target_repo*/`) to avoid gitlink/submodule confusion. The loop produced a verified, agent-authored `pyproject.toml` on its first self-hosted task. |
 
 ## Open questions
