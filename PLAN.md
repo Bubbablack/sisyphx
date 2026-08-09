@@ -11,10 +11,11 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 0 complete ✅ — starting Phase 1 (minimal Ralph-style loop)
-- **Last updated:** 2026-08-08
+- **Current phase:** Phase 1 complete ✅ — ready to scope Phase 2
+- **Last updated:** 2026-08-09
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
-- **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md` — read this before touching `loop.py`
+- **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
+- **Phase 1 loop:** `phase1/loop.py`; tests: `phase1/test_loop.py`, `phase1/tests/test_run_log.py`
 
 ---
 
@@ -254,11 +255,12 @@ repo — plain Python, subprocess, git, files. No Pydantic/SQLite/state machines
   - Verify: `pytest tests/test_run_log.py`
   - Deps: 010
   - See `phase1/tests/test_run_log.py` and `phase1/notes/CHUNK-011.md`
-- [ ] **CHUNK-012** — Point the loop at SisyphX's own repo
+- [x] **CHUNK-012** — Point the loop at SisyphX's own repo ✅ 2026-08-09
   - Acceptance: real first task against SisyphX's own codebase produces a working,
     verified commit with no hand-written code
   - Verify: inspect resulting commit; `uv run pytest` passes
   - Deps: 010, 011
+  - See `pyproject.toml`, `uv.lock`, and `phase1/notes/CHUNK-012.md`
 
 ### Phase 2+ — Grow the framework outward (deferred — will be re-scoped after Phase 1)
 
@@ -302,6 +304,7 @@ this. Rough direction, mapping loosely to the original spec's milestones:
 | 2026-08-08 | CHUNK-005 confirmed the real hook JSON schema (`write`/`edit` → `file_path`; `exec` → `command`) and that guards work correctly, but discovered a hook block **terminates the entire session immediately** (exit 1, no agent narration at all) rather than letting the agent continue past the rejected action. Recovery policy must treat guard-triggered aborts as a distinct, more serious failure category than ordinary verification failures. |
 | 2026-08-08 | CHUNK-010 real run: the agent **violated the semantic contract** of `add_one` (changed it to `return x + 2`) to pass a contradictory test, proving that verification needs more than just the project's own test suite. A follow-up forced-unsolvable run halted at `max_iterations` as required. |
 | 2026-08-08 | CHUNK-010 unexpected finding: in `--permission-mode bypass` the agent can run `git commit` on its own, creating commits outside the loop's control. Phase 2 needs a guard (git command hook or post-iteration commit audit) to prevent or detect agent-authored commits. |
+| 2026-08-09 | CHUNK-012: SisyphX repo initialized with root `.gitignore` that excludes embedded demo repos (`phase0/scratch/`, `phase1/target_repo*/`) to avoid gitlink/submodule confusion. The loop produced a verified, agent-authored `pyproject.toml` on its first self-hosted task. |
 
 ## Open questions
 
