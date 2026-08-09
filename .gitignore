@@ -1,0 +1,12 @@
+.agent-state/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Embedded scratch/demo repos: they carry their own .git history and are not
+# part of the SisyphX framework source tree.
+phase0/scratch/
+phase1/target_repo/
+phase1/target_repo_unsolvable/

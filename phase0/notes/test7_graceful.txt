@@ -1,0 +1,6 @@
+TimeoutExpired after 20.0s -- sending SIGTERM to pid 84574, grace period 5s
+Process exited gracefully after SIGTERM, returncode=-15
+[graceful] pgrep 'sleep 60': 84625 sleep 60
+[graceful] pgrep 'permission-mode bypass': (none found)
+slow.txt exists: True
+slow.txt contents: 'PART1'

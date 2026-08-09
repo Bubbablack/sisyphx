@@ -1,0 +1,5 @@
+TimeoutExpired after 20.0s (requested timeout=20s) -- process.kill() sent to the direct child by subprocess.run internals
+[plain] pgrep 'sleep 60': 84391 sleep 60
+[plain] pgrep 'permission-mode bypass': (none found)
+slow.txt exists: True
+slow.txt contents: 'PART1'

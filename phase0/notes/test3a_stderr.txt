@@ -1,0 +1,1 @@
+Error: Failed to read prompt file "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch/does_not_exist.txt": No such file or directory (os error 2)

@@ -1,0 +1,5 @@
+TimeoutExpired after 20.0s -- killing whole process group 84441 with SIGKILL
+[pgroup] pgrep 'sleep 60': 84492 sleep 60
+[pgroup] pgrep 'permission-mode bypass': (none found)
+slow.txt exists: True
+slow.txt contents: 'PART1'

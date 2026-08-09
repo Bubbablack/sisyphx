@@ -1,0 +1,5 @@
+Confirmed: both `allowed/inside.txt` and `not_allowed/inside.txt` exist with correct contents, while `/tmp/sisyphx_sandbox_outside_test.txt` is consistently rejected by the sandbox with "Operation not permitted," and the scope-elevation request couldn't be granted (non-interactive session).
+
+1: SUCCESS
+2: SUCCESS
+3: BLOCKED (sandbox denies write access outside workspace to /tmp; scope request also rejected in non-interactive mode)

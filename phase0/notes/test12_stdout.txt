@@ -1,0 +1,6 @@
+All three tasks are complete:
+1. Created `newfile.txt` with content `HELLO_NEW`
+2. Appended `appended line` to `README.md`
+3. Ran `echo test123` → output `test123`
+
+DONE

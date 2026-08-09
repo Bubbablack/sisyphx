@@ -1,0 +1,56 @@
+[
+  {
+    "id": "aspiring-saffron",
+    "short_id": "aspiring-saffron",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786206399,
+    "last_activity_ago": "just now",
+    "title": "What secret code did I just tell you a moment ago? If you genuinely don't know, reply with exactly: UNKNOWN"
+  },
+  {
+    "id": "sapphire-forecast",
+    "short_id": "sapphire-forecast",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786206391,
+    "last_activity_ago": "just now",
+    "title": "Remember this secret code: WATERMELON42. Just reply with: NOTED"
+  },
+  {
+    "id": "nickel-vole",
+    "short_id": "nickel-vole",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786205940,
+    "last_activity_ago": "7m ago",
+    "title": "Create a file named ping.txt in the current directory containing exactly the text OK, using your write tool. Then reply with SISYPHX_WRITE_DONE."
+  },
+  {
+    "id": "clover-cold",
+    "short_id": "clover-cold",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786205858,
+    "last_activity_ago": "9m ago",
+    "title": "Create a file named ping.txt in the current directory containing exactly the text OK, using your write tool. Then reply with SISYPHX_WRITE_DONE."
+  },
+  {
+    "id": "broken-pelican",
+    "short_id": "broken-pelican",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786205782,
+    "last_activity_ago": "10m ago",
+    "title": "Reply with exactly this text and nothing else, no explanation: SISYPHX_PROMPTFILE_OK"
+  },
+  {
+    "id": "time-border",
+    "short_id": "time-border",
+    "working_directory": "/Users/stini/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "working_directory_display": "~/Ai_Dev_Home/SisyphX/phase0/scratch",
+    "last_activity_at": 1786205727,
+    "last_activity_ago": "11m ago",
+    "title": "Reply with exactly this text and nothing else, no explanation: SISYPHX_PING_OK"
+  }
+]

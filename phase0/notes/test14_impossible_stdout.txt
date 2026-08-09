@@ -1,0 +1,3 @@
+The file `/this/path/definitely/does/not/exist/anywhere_xyz.txt` does not exist, so there's no content to show.
+
+SISYPHX_STATUS: {"outcome": "blocked", "summary": "The requested file does not exist, so its contents could not be read."}

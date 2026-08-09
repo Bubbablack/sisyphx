@@ -1,0 +1,2 @@
+Error: Unknown model: 'definitely-not-a-real-model-xyz'
+Available: adaptive, claude-fable-5, claude-haiku-4.5, claude-opus-4.5, claude-opus-4.6, claude-opus-4.7, claude-opus-4.8, claude-opus-5, claude-sonnet-4.5, claude-sonnet-4.6, claude-sonnet-5, deepseek-v4-pro, gemini-3-flash, gemini-3.1-pro, gemini-3.5-flash, gemini-3.6-flash, glm-5.2, gpt-4.1, gpt-5.1, gpt-5.2, gpt-5.3-codex, gpt-5.4, gpt-5.4-mini, gpt-5.5, gpt-5.6-luna, gpt-5.6-sol, gpt-5.6-terra, grok-4.5, inkling, kimi-k2.6, kimi-k2.7, kimi-k3, nemotron-3-ultra, swe-1.6, swe-1.6-fast, swe-1.7, swe-1.7-lightning

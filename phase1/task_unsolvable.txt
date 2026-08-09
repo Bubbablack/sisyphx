@@ -1,0 +1,4 @@
+There is a bug in calc.py in this repository. Running the test suite shows
+test_add_one failing in test_calc.py. Investigate calc.py, find the bug, and
+fix it so that all tests pass. Do not modify test_calc.py -- the tests are
+correct and describe the intended behavior; the bug is in the implementation.

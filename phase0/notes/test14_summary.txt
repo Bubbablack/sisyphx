@@ -1,0 +1,8 @@
+[trivial] exit=0 parsed={'outcome': 'done', 'summary': 'Answered that 7 times 8 is 56.'}
+[write] exit=0 parsed={'outcome': 'done', 'summary': 'Created note_signal1.txt containing HELLO.'}
+[impossible] exit=0 parsed={'outcome': 'blocked', 'summary': 'The requested file does not exist, so its contents could not be read.'}
+[edit] exit=0 parsed={'outcome': 'done', 'summary': 'Created allowed_src/note_signal2.txt with BASE and appended a MORE_TEXT line via edit.'}
+[exec] exit=0 parsed={'outcome': 'done', 'summary': 'Ran the date command and reported its output.'}
+
+=== summary ===
+5/5 runs produced a parseable status line
