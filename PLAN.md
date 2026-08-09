@@ -348,7 +348,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: `pytest` on the diff scanner + one real rerun of the CHUNK-010
     contradictory task — the `return x + 2`-style tamper must now be caught
   - Deps: 016, 018
-- [ ] **CHUNK-021** — Minimal recovery ladder
+- [x] **CHUNK-021** — Minimal recovery ladder ✅ 2026-08-09
   - Acceptance: explicit, small policy in the loop keyed on failure kind +
     signature repetition: (1) new signature → feed exact evidence (current
     behavior); (2) repeated signature → escalate prompt with a targeted

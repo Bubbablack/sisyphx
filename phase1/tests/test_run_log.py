@@ -321,6 +321,7 @@ def test_run_loop_log_entry_contains_all_canonical_fields(real_repo, monkeypatch
         "agent_timed_out",
         "status",
         "verify_exit_code",
+        "verify_output",
         "passed",
         "failure_kind",
         "failure_signature",

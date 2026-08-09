@@ -49,6 +49,7 @@ from phase2.failure_signature import (
     FailureSignature,
     failure_signature,
 )
+from phase2.recovery_ladder import decide_action, write_escalation_brief
 from phase2.tamper_guard import scan_tamper
 
 
@@ -63,6 +64,7 @@ class RunLogEntry(TypedDict, total=False):
     agent_timed_out: bool
     status: dict | None         # parsed SISYPHX_STATUS, if any
     verify_exit_code: int
+    verify_output: str          # raw verify output for the recovery ladder
     passed: bool
     failure_kind: str           # CHUNK-018: guard / agent-timeout / verify-timeout / verify-fail / verify-pass / agent-error
     failure_signature: str      # CHUNK-018: 16-char hash of the failure identity
@@ -83,6 +85,7 @@ LOG_FIELDS: tuple[str, ...] = (
     "agent_timed_out",
     "status",
     "verify_exit_code",
+    "verify_output",
     "passed",
     "failure_kind",
     "failure_signature",
@@ -300,7 +303,6 @@ def run_loop(
     ensure_gitignored(repo)
 
     previous_failure: str | None = None
-    recent_signatures: list[FailureSignature] = []
 
     for iteration in range(1, max_iterations + 1):
         log(f"=== iteration {iteration}/{max_iterations} ===")
@@ -348,11 +350,13 @@ def run_loop(
                 "head_before": head_before,
                 "head_after": head_after,
                 "git_sha": sha,
+                "verify_output": "",
                 "committed": False,
                 "duration_seconds": round(duration, 1),
                 "run_dir": str(run_dir.relative_to(repo)),
             }
             write_log_entry(log_path, entry)
+            write_escalation_brief(repo, task_text, read_log(log_path))
             return 4
 
         # CHUNK-020: test-tamper guard.
@@ -379,11 +383,13 @@ def run_loop(
                 "head_before": head_before,
                 "head_after": head_after,
                 "git_sha": sha,
+                "verify_output": "",
                 "committed": False,
                 "duration_seconds": round(duration, 1),
                 "run_dir": str(run_dir.relative_to(repo)),
             }
             write_log_entry(log_path, entry)
+            write_escalation_brief(repo, task_text, read_log(log_path))
             return 4
 
         verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
@@ -410,6 +416,7 @@ def run_loop(
             "agent_timed_out": timed_out,
             "status": status,
             "verify_exit_code": verify_exit,
+            "verify_output": verify_output,
             "passed": passed,
             "failure_kind": signature.kind,
             "failure_signature": signature.hash,
@@ -435,17 +442,17 @@ def run_loop(
         # Guard aborts are a distinct, more serious failure class: do not retry.
         if signature.kind == "guard":
             log("=== STOPPING: guard blocked an action ===")
+            write_escalation_brief(repo, task_text, read_log(log_path))
             return 4
 
-        previous_failure = verify_output
-        recent_signatures.append(signature)
-        recent_signatures = recent_signatures[-repeat_threshold:]
-        if (
-            len(recent_signatures) == repeat_threshold
-            and len({s.hash for s in recent_signatures}) == 1
-        ):
-            log(f"=== STOPPING: identical failure signature repeated {repeat_threshold} times in a row ===")
+        # CHUNK-021: minimal recovery ladder.
+        action = decide_action(read_log(log_path), repeat_threshold)
+        if action.stop:
+            write_escalation_brief(repo, task_text, read_log(log_path))
+            log(f"=== STOPPING: {action.kind} after repeated failure ===")
             return 3
+
+        previous_failure = action.prompt_text
 
     log(f"=== STOPPING: max_iterations ({max_iterations}) reached without passing ===")
     return 2
