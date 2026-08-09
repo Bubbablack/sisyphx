@@ -324,7 +324,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
     CHUNK-015 (same failure twice → equal signatures; distinct failures →
     distinct); wired into nothing yet
   - Deps: 014, 015
-- [ ] **CHUNK-018** — Loop uses signatures for stuck detection + failure classes
+- [x] **CHUNK-018** — Loop uses signatures for stuck detection + failure classes ✅ 2026-08-09
   - Acceptance: `loop.py` replaces byte-identical comparison with
     `FailureSignature`; guard-aborts skip the "same prompt retry" rung and
     stop (or escalate) immediately per CHUNK-005's finding; run log gains

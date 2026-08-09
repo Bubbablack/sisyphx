@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """SisyphX Phase 1 -- minimal Ralph-style loop.
 
-Implements PLAN.md's Phase 1 (CHUNK-009/010/011), following
-phase0/DEVIN_CLI_CONTRACT.md. Deliberately plain: subprocess + git + files.
-No Pydantic/SQLite/state machines yet -- those come in Phase 2+, retrofitted
-around whatever this loop actually needed, once it's proven itself.
+Implements PLAN.md's Phase 1 (CHUNK-009/010/011) and now CHUNK-018,
+following phase0/DEVIN_CLI_CONTRACT.md. Deliberately plain: subprocess + git
++ files. No Pydantic/SQLite/state machines yet -- those come in Phase 2+,
+retrofitted around whatever this loop actually needed, once it's proven itself.
 
 Core principle carried over from every Phase 0 finding: the agent's exit
 code and its own self-report are NEVER trusted. Only the independently-run
-verification command decides pass/fail.
+verification command decides pass/fail, and now `FailureSignature` decides
+"same failure again".
 
 Usage:
     python3 loop.py --repo <path> --task <task_prompt_file> \\
@@ -17,8 +18,9 @@ Usage:
 
 Stop conditions (first one hit wins):
     - verification passes                              -> exit 0
-    - the last `repeat_threshold` verification failures
-      are byte-identical (stuck, not making progress)   -> exit 3
+    - the last `repeat_threshold` failures have the same
+      `FailureSignature` (stuck, not making progress)   -> exit 3
+    - a guard aborts the session                       -> exit 4
     - max_iterations reached without passing             -> exit 2
 """
 from __future__ import annotations
@@ -31,6 +33,17 @@ import sys
 import time
 from pathlib import Path
 from typing import TypedDict
+
+# Ensure SisyphX repo root is on sys.path so phase2.failure_signature is
+# importable regardless of where loop.py is invoked from.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from phase2.failure_signature import (
+    GUARD_SENTINEL,
+    FailureSignature,
+    failure_signature,
+)
 
 
 # Run log schema (CHUNK-011). Each line of `.agent-state/runs/log.jsonl` is one
@@ -45,6 +58,8 @@ class RunLogEntry(TypedDict, total=False):
     status: dict | None         # parsed SISYPHX_STATUS, if any
     verify_exit_code: int
     passed: bool
+    failure_kind: str           # CHUNK-018: guard / agent-timeout / verify-timeout / verify-fail / verify-pass / agent-error
+    failure_signature: str      # CHUNK-018: 16-char hash of the failure identity
     git_sha: str                # HEAD after the loop's own commit attempt
     committed: bool             # True if the loop itself staged+committed changes
     duration_seconds: float
@@ -61,6 +76,8 @@ LOG_FIELDS: tuple[str, ...] = (
     "status",
     "verify_exit_code",
     "passed",
+    "failure_kind",
+    "failure_signature",
     "git_sha",
     "committed",
     "duration_seconds",
@@ -224,14 +241,15 @@ def run_loop(
     log=print,
 ) -> int:
     """Returns a process-style exit code: 0 = passed, 2 = max_iterations
-    exhausted, 3 = repeated identical failure detected."""
+    exhausted, 3 = repeated identical failure signature detected,
+    4 = guard abort (do not retry)."""
     state_dir = repo / ".agent-state" / "runs"
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "log.jsonl"
     ensure_gitignored(repo)
 
     previous_failure: str | None = None
-    recent_failures: list[str] = []
+    recent_signatures: list[FailureSignature] = []
 
     for iteration in range(1, max_iterations + 1):
         log(f"=== iteration {iteration}/{max_iterations} ===")
@@ -250,7 +268,17 @@ def run_loop(
 
         verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
         (run_dir / "verify_output.txt").write_text(verify_output)
-        passed = verify_exit == 0
+
+        signature = failure_signature(
+            verify_output,
+            agent_exit,
+            timed_out,
+            agent_stderr,
+            verify_exit,
+            repo_path=repo,
+            repo_root=REPO_ROOT,
+        )
+        passed = signature.kind == "verify-pass"
 
         sha, committed = git_commit_iteration(repo, iteration, passed)
         duration = time.time() - start
@@ -263,6 +291,8 @@ def run_loop(
             "status": status,
             "verify_exit_code": verify_exit,
             "passed": passed,
+            "failure_kind": signature.kind,
+            "failure_signature": signature.hash,
             "git_sha": sha,
             "committed": committed,
             "duration_seconds": round(duration, 1),
@@ -272,18 +302,27 @@ def run_loop(
 
         log(
             f"    agent_exit={agent_exit} timed_out={timed_out} status={status} "
-            f"verify_exit={verify_exit} passed={passed} sha={sha[:8]} committed={committed}"
+            f"verify_exit={verify_exit} passed={passed} kind={signature.kind} "
+            f"signature={signature.hash} sha={sha[:8]} committed={committed}"
         )
 
         if passed:
             log(f"=== PASSED on iteration {iteration} ===")
             return 0
 
+        # Guard aborts are a distinct, more serious failure class: do not retry.
+        if signature.kind == "guard":
+            log("=== STOPPING: guard blocked an action ===")
+            return 4
+
         previous_failure = verify_output
-        recent_failures.append(verify_output)
-        recent_failures = recent_failures[-repeat_threshold:]
-        if len(recent_failures) == repeat_threshold and len(set(recent_failures)) == 1:
-            log(f"=== STOPPING: identical failure repeated {repeat_threshold} times in a row ===")
+        recent_signatures.append(signature)
+        recent_signatures = recent_signatures[-repeat_threshold:]
+        if (
+            len(recent_signatures) == repeat_threshold
+            and len({s.hash for s in recent_signatures}) == 1
+        ):
+            log(f"=== STOPPING: identical failure signature repeated {repeat_threshold} times in a row ===")
             return 3
 
     log(f"=== STOPPING: max_iterations ({max_iterations}) reached without passing ===")

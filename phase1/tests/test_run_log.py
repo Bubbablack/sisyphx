@@ -152,6 +152,63 @@ def test_run_loop_logs_repeat_threshold_stop(real_repo, monkeypatch):
     assert [e["verify_exit_code"] for e in log] == [1, 1, 1]
 
 
+def test_run_loop_stops_on_guard_abort(real_repo, monkeypatch):
+    """A guard abort (exit 1 + sentinel stderr) stops the loop immediately
+    with exit 4 and records failure_kind='guard'."""
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (1, False, "", loop.GUARD_SENTINEL),
+    )
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (1, ""),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="false",
+        max_iterations=5,
+        repeat_threshold=3,
+        log=lambda *a: None,
+    )
+    assert exit_code == 4
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 1
+    assert log[0]["failure_kind"] == "guard"
+    assert log[0]["passed"] is False
+
+
+def test_run_loop_signature_repeat_detection_ignores_volatile_durations(real_repo, monkeypatch):
+    """Two verify-fail outputs that differ only in duration still have the same
+    FailureSignature, so the loop stops at repeat_threshold=2."""
+    outputs = [
+        "1 failed, 1 passed in 0.05s\nFAILED test_calc.py::test_add_one - assert 5 == 6",
+        "1 failed, 1 passed in 0.07s\nFAILED test_calc.py::test_add_one - assert 5 == 6",
+    ]
+    output_iter = iter(outputs)
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "blocked"}', ""),
+    )
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (1, next(output_iter)),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="false",
+        max_iterations=5,
+        repeat_threshold=2,
+        log=lambda *a: None,
+    )
+    assert exit_code == 3
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 2
+    assert log[0]["failure_signature"] == log[1]["failure_signature"]
+    assert log[0]["failure_kind"] == "verify-fail"
+
+
 def test_run_loop_log_entry_contains_all_canonical_fields(real_repo, monkeypatch):
     """Every log entry contains the canonical CHUNK-011 fields, plus sensible
     values for agent/verify outcomes."""
@@ -181,6 +238,8 @@ def test_run_loop_log_entry_contains_all_canonical_fields(real_repo, monkeypatch
         "status",
         "verify_exit_code",
         "passed",
+        "failure_kind",
+        "failure_signature",
         "git_sha",
         "committed",
         "duration_seconds",
