@@ -26,13 +26,18 @@ Stop conditions (first one hit wins):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import TypedDict
+
+LOOP_AUTHOR_NAME = "SisyphX Loop"
+LOOP_AUTHOR_EMAIL = "loop@sisyphx.local"
 
 # Ensure SisyphX repo root is on sys.path so phase2.failure_signature is
 # importable regardless of where loop.py is invoked from.
@@ -60,6 +65,8 @@ class RunLogEntry(TypedDict, total=False):
     passed: bool
     failure_kind: str           # CHUNK-018: guard / agent-timeout / verify-timeout / verify-fail / verify-pass / agent-error
     failure_signature: str      # CHUNK-018: 16-char hash of the failure identity
+    head_before: str            # CHUNK-019: HEAD before the agent ran
+    head_after: str             # CHUNK-019: HEAD after the agent ran
     git_sha: str                # HEAD after the loop's own commit attempt
     committed: bool             # True if the loop itself staged+committed changes
     duration_seconds: float
@@ -78,6 +85,8 @@ LOG_FIELDS: tuple[str, ...] = (
     "passed",
     "failure_kind",
     "failure_signature",
+    "head_before",
+    "head_after",
     "git_sha",
     "committed",
     "duration_seconds",
@@ -174,21 +183,61 @@ def run_verification(repo: Path, verify_cmd: str, timeout: int) -> tuple[int, st
 
 def git_commit_iteration(repo: Path, iteration: int, passed: bool) -> tuple[str, bool]:
     """Checkpoint every iteration regardless of outcome -- this is the
-    loop's entire rollback/recovery story for now: git history."""
+    loop's entire rollback/recovery story for now: git history.
+    Commits are tagged with the loop author so a post-iteration audit can
+    distinguish loop-committed changes from agent-committed changes."""
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     diff = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo)
     committed = False
     if diff.returncode != 0:  # non-zero means there ARE staged changes
         status_word = "PASS" if passed else "fail"
+        env = {
+            "GIT_AUTHOR_NAME": LOOP_AUTHOR_NAME,
+            "GIT_AUTHOR_EMAIL": LOOP_AUTHOR_EMAIL,
+            "GIT_COMMITTER_NAME": LOOP_AUTHOR_NAME,
+            "GIT_COMMITTER_EMAIL": LOOP_AUTHOR_EMAIL,
+        }
         subprocess.run(
             ["git", "commit", "-m", f"SisyphX loop iteration {iteration} [{status_word}]"],
-            cwd=repo, check=True, capture_output=True,
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            env={**os.environ, **env},
         )
         committed = True
     sha = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
     ).stdout.strip()
     return sha, committed
+
+
+def get_head(repo: Path) -> str:
+    """Return the current HEAD sha."""
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
+    )
+    return result.stdout.strip()
+
+
+def audit_commit_integrity(repo: Path, pre_head: str) -> tuple[bool, list[str]]:
+    """Check whether any commits were added between pre_head and HEAD that were
+    NOT authored by the loop. Returns (ok, list_of_offending_commits)."""
+    if get_head(repo) == pre_head:
+        return True, []
+    log_proc = subprocess.run(
+        ["git", "log", f"{pre_head}..HEAD", "--format=%H %an <%ae>"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    offending: list[str] = []
+    for line in log_proc.stdout.strip().splitlines():
+        if not line:
+            continue
+        sha, rest = line.split(" ", 1)
+        if rest != f"{LOOP_AUTHOR_NAME} <{LOOP_AUTHOR_EMAIL}>":
+            offending.append(line)
+    return not offending, offending
 
 
 def ensure_gitignored(repo: Path) -> None:
@@ -242,7 +291,7 @@ def run_loop(
 ) -> int:
     """Returns a process-style exit code: 0 = passed, 2 = max_iterations
     exhausted, 3 = repeated identical failure signature detected,
-    4 = guard abort (do not retry)."""
+    4 = guard abort or unauthorized commit (do not retry)."""
     state_dir = repo / ".agent-state" / "runs"
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "log.jsonl"
@@ -257,6 +306,9 @@ def run_loop(
         run_dir.mkdir(parents=True, exist_ok=True)
 
         start = time.time()
+        head_before = get_head(repo)
+        (run_dir / "head_before.txt").write_text(head_before)
+
         prompt_text = build_prompt(task_text, previous_failure)
         agent_exit, timed_out, agent_stdout, agent_stderr = run_devin(
             repo, prompt_text, agent_timeout, run_dir
@@ -265,6 +317,39 @@ def run_loop(
         (run_dir / "agent_stderr.txt").write_text(agent_stderr)
 
         status = parse_status(agent_stdout)
+
+        head_after = get_head(repo)
+        (run_dir / "head_after.txt").write_text(head_after)
+        ok, offending = audit_commit_integrity(repo, head_before)
+        if not ok:
+            log(f"=== STOPPING: unauthorized agent commit detected: {offending[0]} ===")
+            duration = time.time() - start
+            # Agent-committed code has bypassed the loop's checkpointing policy.
+            signature = FailureSignature(
+                kind="commit-integrity",
+                normalized="",
+                hash=hashlib.sha256("commit-integrity".encode()).hexdigest()[:16],
+            )
+            sha = get_head(repo)
+            entry: RunLogEntry = {
+                "iteration": iteration,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "agent_exit_code": agent_exit,
+                "agent_timed_out": timed_out,
+                "status": status,
+                "verify_exit_code": -1,
+                "passed": False,
+                "failure_kind": signature.kind,
+                "failure_signature": signature.hash,
+                "head_before": head_before,
+                "head_after": head_after,
+                "git_sha": sha,
+                "committed": False,
+                "duration_seconds": round(duration, 1),
+                "run_dir": str(run_dir.relative_to(repo)),
+            }
+            write_log_entry(log_path, entry)
+            return 4
 
         verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
         (run_dir / "verify_output.txt").write_text(verify_output)
@@ -293,6 +378,8 @@ def run_loop(
             "passed": passed,
             "failure_kind": signature.kind,
             "failure_signature": signature.hash,
+            "head_before": head_before,
+            "head_after": head_after,
             "git_sha": sha,
             "committed": committed,
             "duration_seconds": round(duration, 1),

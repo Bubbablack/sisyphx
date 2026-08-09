@@ -332,7 +332,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: `pytest` (stubbed) + one real run where two failures differing only
     in volatile output (e.g. durations) are correctly detected as identical
   - Deps: 017
-- [ ] **CHUNK-019** — Commit integrity guard
+- [x] **CHUNK-019** — Commit integrity guard ✅ 2026-08-09
   - Acceptance: per CHUNK-013's findings, either a hook that blocks
     agent-initiated `git commit`/`push`, or (if hooks can't in bypass mode) a
     post-iteration commit audit: loop records HEAD before the agent runs and

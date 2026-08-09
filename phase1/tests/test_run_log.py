@@ -3,6 +3,7 @@
 operations run against a real throwaway `tmp_path` repo, same policy as
 `test_loop.py`."""
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -178,6 +179,41 @@ def test_run_loop_stops_on_guard_abort(real_repo, monkeypatch):
     assert log[0]["passed"] is False
 
 
+def test_run_loop_stops_on_unauthorized_agent_commit(real_repo, monkeypatch):
+    """If the agent creates its own git commit, the loop detects it, logs
+    failure_kind='commit-integrity', and exits 4."""
+    def agent_makes_commit(repo, text, timeout, run_dir):
+        (repo / "agent_marker.txt").write_text("I was here")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        env = os.environ.copy()
+        env.update({
+            "GIT_AUTHOR_NAME": "Agent",
+            "GIT_AUTHOR_EMAIL": "agent@example.com",
+        })
+        subprocess.run(
+            ["git", "commit", "-m", "agent commit"],
+            cwd=repo,
+            check=True,
+            env=env,
+        )
+        return 0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""
+
+    monkeypatch.setattr(loop, "run_devin", agent_makes_commit)
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="commit something",
+        verify_cmd="true",
+        max_iterations=3,
+        log=lambda *a: None,
+    )
+    assert exit_code == 4
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 1
+    assert log[0]["failure_kind"] == "commit-integrity"
+    assert log[0]["passed"] is False
+    assert log[0]["head_before"] != log[0]["head_after"]
+
+
 def test_run_loop_signature_repeat_detection_ignores_volatile_durations(real_repo, monkeypatch):
     """Two verify-fail outputs that differ only in duration still have the same
     FailureSignature, so the loop stops at repeat_threshold=2."""
@@ -240,6 +276,8 @@ def test_run_loop_log_entry_contains_all_canonical_fields(real_repo, monkeypatch
         "passed",
         "failure_kind",
         "failure_signature",
+        "head_before",
+        "head_after",
         "git_sha",
         "committed",
         "duration_seconds",
