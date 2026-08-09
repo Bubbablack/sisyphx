@@ -49,6 +49,7 @@ from phase2.failure_signature import (
     FailureSignature,
     failure_signature,
 )
+from phase2.tamper_guard import scan_tamper
 
 
 # Run log schema (CHUNK-011). Each line of `.agent-state/runs/log.jsonl` is one
@@ -287,11 +288,12 @@ def run_loop(
     repeat_threshold: int = 3,
     agent_timeout: int = 240,
     verify_timeout: int = 120,
+    permitted_paths: tuple[str, ...] = (),
     log=print,
 ) -> int:
     """Returns a process-style exit code: 0 = passed, 2 = max_iterations
     exhausted, 3 = repeated identical failure signature detected,
-    4 = guard abort or unauthorized commit (do not retry)."""
+    4 = guard / unauthorized commit / tamper (do not retry)."""
     state_dir = repo / ".agent-state" / "runs"
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "log.jsonl"
@@ -320,6 +322,8 @@ def run_loop(
 
         head_after = get_head(repo)
         (run_dir / "head_after.txt").write_text(head_after)
+
+        # CHUNK-019: commit-integrity guard.
         ok, offending = audit_commit_integrity(repo, head_before)
         if not ok:
             log(f"=== STOPPING: unauthorized agent commit detected: {offending[0]} ===")
@@ -329,6 +333,37 @@ def run_loop(
                 kind="commit-integrity",
                 normalized="",
                 hash=hashlib.sha256("commit-integrity".encode()).hexdigest()[:16],
+            )
+            sha = get_head(repo)
+            entry: RunLogEntry = {
+                "iteration": iteration,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "agent_exit_code": agent_exit,
+                "agent_timed_out": timed_out,
+                "status": status,
+                "verify_exit_code": -1,
+                "passed": False,
+                "failure_kind": signature.kind,
+                "failure_signature": signature.hash,
+                "head_before": head_before,
+                "head_after": head_after,
+                "git_sha": sha,
+                "committed": False,
+                "duration_seconds": round(duration, 1),
+                "run_dir": str(run_dir.relative_to(repo)),
+            }
+            write_log_entry(log_path, entry)
+            return 4
+
+        # CHUNK-020: test-tamper guard.
+        tamper_ok, tamper_paths = scan_tamper(repo, head_before, permitted_paths)
+        if not tamper_ok:
+            log(f"=== STOPPING: tamper guard triggered by {tamper_paths} ===")
+            duration = time.time() - start
+            signature = FailureSignature(
+                kind="tamper",
+                normalized="",
+                hash=hashlib.sha256("tamper".encode()).hexdigest()[:16],
             )
             sha = get_head(repo)
             entry: RunLogEntry = {
@@ -425,6 +460,12 @@ def main() -> int:
     ap.add_argument("--repeat-threshold", type=int, default=3)
     ap.add_argument("--agent-timeout", type=int, default=240)
     ap.add_argument("--verify-timeout", type=int, default=120)
+    ap.add_argument(
+        "--permit",
+        action="append",
+        default=[],
+        help="glob of a path the agent is explicitly allowed to edit (repeatable)",
+    )
     args = ap.parse_args()
 
     return run_loop(
@@ -435,6 +476,7 @@ def main() -> int:
         repeat_threshold=args.repeat_threshold,
         agent_timeout=args.agent_timeout,
         verify_timeout=args.verify_timeout,
+        permitted_paths=tuple(args.permit),
     )
 
 

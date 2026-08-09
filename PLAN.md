@@ -340,7 +340,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: `pytest` + one real adversarial run where the task explicitly asks
     the agent to `git commit` — the loop must prevent or detect it
   - Deps: 013
-- [ ] **CHUNK-020** — Test-tamper guard (detection layer)
+- [x] **CHUNK-020** — Test-tamper guard (detection layer) ✅ 2026-08-09
   - Acceptance: post-iteration `git diff` scan per CHUNK-016's recorded
     patterns; edits to protected paths (tests, verify config) fail the
     iteration with a distinct failure kind unless the task file explicitly

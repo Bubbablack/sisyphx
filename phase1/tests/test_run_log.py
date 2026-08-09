@@ -179,6 +179,54 @@ def test_run_loop_stops_on_guard_abort(real_repo, monkeypatch):
     assert log[0]["passed"] is False
 
 
+def test_run_loop_stops_on_test_tamper(real_repo, monkeypatch):
+    """If the agent edits a protected test file, the tamper guard triggers
+    and the loop stops immediately with failure_kind='tamper'."""
+    def agent_tampers(repo, text, timeout, run_dir):
+        (repo / "test_calc.py").write_text("# tampered")
+        return 0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""
+
+    monkeypatch.setattr(loop, "run_devin", agent_tampers)
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="add a new test",
+        verify_cmd="true",
+        max_iterations=3,
+        log=lambda *a: None,
+    )
+    assert exit_code == 4
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 1
+    assert log[0]["failure_kind"] == "tamper"
+    assert log[0]["passed"] is False
+
+
+def test_run_loop_allows_permitted_path(real_repo, monkeypatch):
+    """When a protected path is explicitly permitted, the tamper guard does not
+    stop the loop."""
+    def agent_tampers(repo, text, timeout, run_dir):
+        (repo / "test_calc.py").write_text("# allowed edit")
+        return 0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""
+
+    monkeypatch.setattr(loop, "run_devin", agent_tampers)
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (0, "ok"),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="add a new test",
+        verify_cmd="true",
+        max_iterations=3,
+        permitted_paths=("test_calc.py",),
+        log=lambda *a: None,
+    )
+    assert exit_code == 0
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 1
+    assert log[0]["failure_kind"] == "verify-pass"
+
+
 def test_run_loop_stops_on_unauthorized_agent_commit(real_repo, monkeypatch):
     """If the agent creates its own git commit, the loop detects it, logs
     failure_kind='commit-integrity', and exits 4."""
