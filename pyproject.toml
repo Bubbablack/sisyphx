@@ -8,4 +8,4 @@ requires-python = ">=3.11"
 dev = ["pytest"]
 
 [tool.pytest.ini_options]
-testpaths = ["phase1/test_loop.py", "phase1/tests/test_run_log.py"]
+testpaths = ["phase1/test_loop.py", "phase1/tests/test_run_log.py", "phase2/test_failure_signature.py"]

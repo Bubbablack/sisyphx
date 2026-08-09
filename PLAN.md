@@ -315,7 +315,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
 
 #### Implementation — only after the spikes above are recorded
 
-- [ ] **CHUNK-017** — `FailureSignature` hashing
+- [x] **CHUNK-017** — `FailureSignature` hashing ✅ 2026-08-09
   - Acceptance: `phase2/failure_signature.py` implementing CHUNK-015's recorded
     rules: normalize verify output → stable hash; classify failure kind
     (verify-fail / timeout / guard-abort / agent-error) using CHUNK-014's
