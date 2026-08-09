@@ -275,7 +275,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
 
 #### Spikes — learn and confirm first (no framework code)
 
-- [ ] **CHUNK-013** — Spike: can a `PreToolUse`/`exec` hook block `git` commands?
+- [x] **CHUNK-013** — Spike: can a `PreToolUse`/`exec` hook block `git` commands? ✅ 2026-08-09
   - Acceptance: empirically confirm whether a hook in `.devin/hooks.v1.json`
     can block `git commit`/`git push` in `--permission-mode bypass`; document
     exact behavior on block (does it abort the whole session per CHUNK-005, or
