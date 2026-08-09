@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 2 complete — CHUNK-023 retro done; Phase 3 chunk-level scoping deferred
+- **Current phase:** Phase 3 scoped — starting at CHUNK-024 (spikes first)
 - **Last updated:** 2026-08-09
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -374,12 +374,119 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: manual review
   - Deps: 017–022
 
-### Phase 3+ — Grow the framework outward (deferred — will be re-scoped after Phase 2)
+### Phase 3 — Close the semantic-cheating gap; formalize around real data
 
-Not detailed yet, on purpose. Phase 2 produced concrete findings and
-recommendations (see `phase2/notes/CHUNK-023.md`) but the actual chunk-level
-scoping of Phase 3 is deferred until the next planning session. Rough direction,
-mapping loosely to the original spec's milestones:
+Goal: attack the one hard gap Phase 2 proved it could not close — **source-level
+semantic cheating** (CHUNK-010/016: `return x + 2` passes a wrong test and no
+path-based guard can tell) — and retrofit formal contracts (Pydantic models,
+chunk pipeline) around the real data the loop already produces. Scope stays
+narrow: **Verification engine + Control-plane formalization only** — still no
+ontology, learning/promotion, APM, or durability. Same rules as Phase 2:
+**spikes first (024–028), implementation only after each spike's findings are
+recorded in `phase3/notes/`**, and every implementation chunk is verified by
+unit tests plus at least one real adversarial run.
+
+#### Spikes — learn and confirm first (no framework code)
+
+- [ ] **CHUNK-024** — Spike: held-out verification — can the loop hide the real
+  tests from the agent?
+  - Acceptance: empirically confirm a "held-out test" arrangement: agent works
+    against the task's visible tests, while the loop verifies with an
+    additional test file the agent never sees (kept outside the workspace,
+    copied in only for the verify step, removed after). Confirm the CHUNK-010
+    contradictory task now fails verification instead of passing via
+    `return x + 2`; confirm the agent cannot read or edit the held-out file
+    mid-iteration (check hooks/permitted-paths interaction). Findings in
+    `phase3/notes/CHUNK-024.md`.
+  - Verify: manual runs incl. one adversarial rerun of the CHUNK-010 task;
+    transcripts + diffs saved
+  - Deps: 016, 020
+- [ ] **CHUNK-025** — Spike: mutation testing feasibility + latency budget
+  - Acceptance: run `mutmut` (and/or `cosmic-ray`) against `phase1/target_repo`
+    and against SisyphX's own `phase2/` modules; measure wall-clock cost;
+    determine whether mutation score is usable at attempt level (<60s budget,
+    per design decision 4) or only at chunk/feature level; document surviving
+    mutants and whether they correlate with the known semantic-cheat case.
+    Findings + tool choice in `phase3/notes/CHUNK-025.md`.
+  - Verify: manual runs, timings recorded for both repos
+  - Deps: —
+- [ ] **CHUNK-026** — Spike: property tests as a cheat detector
+  - Acceptance: write Hypothesis property tests for `add_one`-style contracts
+    and for two framework invariants (`FailureSignature` stability under
+    volatile-output permutations; `EventStore` append-only behavior); confirm
+    a property test catches the `return x + 2` cheat that the example-based
+    test missed; document where property tests fit in the verify command
+    (attempt vs. chunk level) in `phase3/notes/CHUNK-026.md`.
+  - Verify: manual run showing the property test failing on the cheated
+    implementation and passing on the honest one
+  - Deps: —
+- [ ] **CHUNK-027** — Spike: domain-model extraction from real data
+  - Acceptance: inventory every field actually present in `.agent-state`
+    JSONL logs, the SQLite event trail, and `escalation.md` briefs across all
+    real Phase 1/2 runs; propose the minimal Pydantic model set (Chunk,
+    Attempt, VerificationResult, RecoveryAction, Event) covering only observed
+    fields, with explicit "not yet needed" list from the original spec's
+    appendix. Written up in `phase3/notes/CHUNK-027.md` **before** any model
+    code.
+  - Verify: manual review; every proposed field traceable to a real logged value
+  - Deps: 022
+- [ ] **CHUNK-028** — Spike: multi-chunk sequencing dry run
+  - Acceptance: hand-write 3 small dependent chunks (chunk files with task,
+    verify command, allowlist, deps) for a real target repo and run them
+    through the existing loop back-to-back manually; document what breaks or
+    is awkward (state between chunks, worktree hygiene, verify-command
+    switching, dependency ordering) in `phase3/notes/CHUNK-028.md`.
+  - Verify: manual run of all 3 chunks; artifacts saved
+  - Deps: 021, 022
+
+#### Implementation — only after the spikes above are recorded
+
+- [ ] **CHUNK-029** — Layered verification engine
+  - Acceptance: `phase3/verifier.py` — verification becomes a small pipeline
+    keyed by level, per CHUNK-024/025/026 findings: attempt level = project
+    tests + held-out tests (if configured) within the <60s budget; chunk level
+    adds property tests and (if CHUNK-025 says feasible) mutation testing.
+    Structured `VerificationResult` (per-layer pass/fail + evidence paths)
+    replaces the bare exit code; loop and `FailureSignature` consume it.
+  - Verify: `pytest` + one real adversarial run: the CHUNK-010 contradictory
+    task must now be caught by the held-out/property layer, not slip through
+  - Deps: 024, 025, 026
+- [ ] **CHUNK-030** — Pydantic domain models (retrofit, not redesign)
+  - Acceptance: `phase3/models.py` implementing exactly the CHUNK-027 model
+    set; JSONL log entries, event rows, and chunk files parse into these
+    models; loop internally constructs them but on-disk formats stay
+    backward-compatible (old logs still parse)
+  - Verify: `pytest` round-trips real Phase 1/2 artifacts through the models
+    unchanged
+  - Deps: 027
+- [ ] **CHUNK-031** — Chunk pipeline: file format + dependency-ordered runner
+  - Acceptance: chunk definition file (YAML/JSON: task, verify level config,
+    allowlist, deps) validated by the CHUNK-030 models; `phase3/pipeline.py`
+    runs a set of chunks in dependency order, one loop per chunk, stopping the
+    pipeline on escalation; fixes the frictions CHUNK-028 recorded
+  - Verify: `pytest` on ordering/validation + one real 3-chunk pipeline run
+    end-to-end on a target repo
+  - Deps: 028, 029, 030
+- [ ] **CHUNK-032** — Human intervention: pause, feedback, resume
+  - Acceptance: when the ladder escalates, the pipeline pauses durably (state
+    on disk + event); a human can drop a `feedback.md` next to
+    `escalation.md`; resuming injects that feedback into the next attempt's
+    prompt and records the intervention as an event
+  - Verify: `pytest` on pause/resume state + one real run: force an
+    escalation, provide feedback, resume to a verified pass
+  - Deps: 021, 031
+- [ ] **CHUNK-033** — Retro: Phase 3 findings + Phase 4 scoping
+  - Acceptance: PLAN.md Status/Decision-log updated with what the layered
+    verifier caught in real runs (esp. whether semantic cheating is now
+    reliably caught), pipeline frictions, model gaps; Phase 4 scoped from
+    evidence
+  - Verify: manual review
+  - Deps: 029–032
+
+### Phase 4+ — Grow the framework outward (deferred — will be re-scoped after Phase 3)
+
+Not detailed yet, on purpose. Rough direction, mapping loosely to the original
+spec's milestones:
 
 - Formalize contracts: Pydantic domain models, `EventStore`, chunk/learning state
   machines — *retrofitted around what Phase 1/2 actually needed*, not designed
@@ -423,6 +530,7 @@ mapping loosely to the original spec's milestones:
 | 2026-08-09 | Phase 2 complete. The loop is now untrickable (commit-integrity + tamper guards) and unstickable (`FailureSignature` + minimal recovery ladder), and every run leaves an append-only SQLite event trail (`phase2/event_store.py`). |
 | 2026-08-09 | Source-level semantic cheating (e.g. changing `add_one` to `return x + 2` to pass a contradictory test) is not mechanically preventable by path-based guards alone. It must be caught by a stronger verifier, property tests, or human review. This is a key finding to feed into Phase 3 scoping when it happens. |
 | 2026-08-09 | The JSONL run log stays as the human-readable line record; the SQLite `EventStore` is the queryable, structured audit trail. No speculative domain models were added to the event schema; it only stores fields the loop already has. |
+| 2026-08-09 | Phase 3 scoped as a Verification-engine + Control-plane-formalization slice targeting the semantic-cheating gap CHUNK-023 identified: held-out tests, property tests, and (if the spike says feasible) mutation testing as verification layers; Pydantic models and a chunk pipeline retrofitted from real Phase 1/2 data. Spikes (024–028) before implementation (029–032), same as Phase 2. Ontology, learning/promotion, APM, and durability remain deferred to Phase 4+. |
 
 ## Open questions
 
