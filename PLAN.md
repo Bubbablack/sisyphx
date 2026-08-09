@@ -304,7 +304,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: manual review; rules demonstrated on ≥4 real captured outputs
     (same failure twice → same normalized form; different failures → different)
   - Deps: —
-- [ ] **CHUNK-016** — Spike: test-tamper detection ground truth
+- [x] **CHUNK-016** — Spike: test-tamper detection ground truth ✅ 2026-08-09
   - Acceptance: enumerate, from real diffs, what "tampering" looks like —
     rerun a CHUNK-010-style contradictory task and capture the agent's diff;
     define which paths/patterns a tamper guard must flag (test files, verify

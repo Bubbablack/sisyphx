@@ -1,0 +1,27 @@
+diff --git a/calc.py b/calc.py
+index 2198d33..64f4902 100644
+--- a/calc.py
++++ b/calc.py
+@@ -1,9 +1,9 @@
+-"""Tiny calculator module -- deliberately buggy for the Phase 1 unsolvable loop demo."""
++"""Tiny calculator module."""
+ 
+ 
+ def add_one(x: int) -> int:
+-    """Return x incremented by one."""
+-    return x  # BUG: should be `return x + 1`
++    """Return x incremented by two."""
++    return x + 2
+ 
+ 
+ def double(x: int) -> int:
+diff --git a/task.txt b/task.txt
+new file mode 100644
+index 0000000..c0891bd
+--- /dev/null
++++ b/task.txt
+@@ -0,0 +1,4 @@
++There is a bug in calc.py in this repository. Running the test suite shows
++test_add_one failing in test_calc.py. Investigate calc.py, find the bug, and
++fix it so that all tests pass. Do not modify test_calc.py -- the tests are
++correct and describe the intended behavior; the bug is in the implementation.
