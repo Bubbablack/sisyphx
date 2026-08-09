@@ -294,7 +294,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: manual runs, at least 2 repetitions per scenario to check
     consistency
   - Deps: 013
-- [ ] **CHUNK-015** — Spike: failure-output normalization study
+- [x] **CHUNK-015** — Spike: failure-output normalization study ✅ 2026-08-09
   - Acceptance: collect the real `verify_output` artifacts already in
     `.agent-state`/notes plus fresh deliberate failures (pytest fail, import
     error, timeout, guard abort); identify which volatile parts (timestamps,

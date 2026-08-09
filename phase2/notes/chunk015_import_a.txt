@@ -1,0 +1,27 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX
+configfile: pyproject.toml
+collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+________ ERROR collecting phase2/scratch/chunk015/import_a/test_calc.py ________
+ImportError while importing test module '/Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk015/import_a/test_calc.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/local/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_calc.py:1: in <module>
+    from calc import add_one, double
+calc.py:1: in <module>
+    import nonexistent_module_12345
+E   ModuleNotFoundError: No module named 'nonexistent_module_12345'
+=========================== short test summary info ============================
+ERROR test_calc.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 0.16s ===============================
+   Building loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk015/import_a
+      Built loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk015/import_a
+Uninstalled 1 package in 1ms
+Installed 1 package in 3ms

@@ -1,0 +1,24 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX
+configfile: pyproject.toml
+collected 2 items
+
+test_calc.py F.                                                          [100%]
+
+=================================== FAILURES ===================================
+_________________________________ test_add_one _________________________________
+
+    def test_add_one():
+>       assert add_one(5) == 6
+E       assert 5 == 6
+E        +  where 5 = add_one(5)
+
+test_calc.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_calc.py::test_add_one - assert 5 == 6
+========================= 1 failed, 1 passed in 0.04s ==========================
+   Building loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk015/pytest_b
+      Built loop-demo @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase2/scratch/chunk015/pytest_b
+Uninstalled 1 package in 1ms
+Installed 1 package in 3ms
