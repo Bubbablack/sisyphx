@@ -44,6 +44,7 @@ LOOP_AUTHOR_EMAIL = "loop@sisyphx.local"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from phase2.event_store import EventStore
 from phase2.failure_signature import (
     GUARD_SENTINEL,
     FailureSignature,
@@ -302,160 +303,313 @@ def run_loop(
     log_path = state_dir / "log.jsonl"
     ensure_gitignored(repo)
 
-    previous_failure: str | None = None
+    event_store = EventStore(repo / ".agent-state" / "events.db")
+    run_id = event_store.new_run_id()
+    event_store.append(
+        "run_started",
+        payload={
+            "task_text": task_text,
+            "verify_cmd": verify_cmd,
+            "max_iterations": max_iterations,
+            "repeat_threshold": repeat_threshold,
+            "agent_timeout": agent_timeout,
+            "verify_timeout": verify_timeout,
+        },
+        run_id=run_id,
+    )
 
-    for iteration in range(1, max_iterations + 1):
-        log(f"=== iteration {iteration}/{max_iterations} ===")
-        run_dir = state_dir / f"{iteration:03d}"
-        run_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        previous_failure: str | None = None
 
-        start = time.time()
-        head_before = get_head(repo)
-        (run_dir / "head_before.txt").write_text(head_before)
+        for iteration in range(1, max_iterations + 1):
+            timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            log(f"=== iteration {iteration}/{max_iterations} ===")
+            run_dir = state_dir / f"{iteration:03d}"
+            run_dir.mkdir(parents=True, exist_ok=True)
 
-        prompt_text = build_prompt(task_text, previous_failure)
-        agent_exit, timed_out, agent_stdout, agent_stderr = run_devin(
-            repo, prompt_text, agent_timeout, run_dir
-        )
-        (run_dir / "agent_stdout.txt").write_text(agent_stdout)
-        (run_dir / "agent_stderr.txt").write_text(agent_stderr)
+            start = time.time()
+            head_before = get_head(repo)
+            (run_dir / "head_before.txt").write_text(head_before)
 
-        status = parse_status(agent_stdout)
-
-        head_after = get_head(repo)
-        (run_dir / "head_after.txt").write_text(head_after)
-
-        # CHUNK-019: commit-integrity guard.
-        ok, offending = audit_commit_integrity(repo, head_before)
-        if not ok:
-            log(f"=== STOPPING: unauthorized agent commit detected: {offending[0]} ===")
-            duration = time.time() - start
-            # Agent-committed code has bypassed the loop's checkpointing policy.
-            signature = FailureSignature(
-                kind="commit-integrity",
-                normalized="",
-                hash=hashlib.sha256("commit-integrity".encode()).hexdigest()[:16],
+            event_store.append(
+                "iteration_started",
+                payload={
+                    "head_before": head_before,
+                    "run_dir": str(run_dir.relative_to(repo)),
+                },
+                run_id=run_id,
+                iteration=iteration,
+                timestamp=timestamp,
             )
-            sha = get_head(repo)
+
+            prompt_text = build_prompt(task_text, previous_failure)
+            agent_exit, timed_out, agent_stdout, agent_stderr = run_devin(
+                repo, prompt_text, agent_timeout, run_dir
+            )
+            (run_dir / "agent_stdout.txt").write_text(agent_stdout)
+            (run_dir / "agent_stderr.txt").write_text(agent_stderr)
+
+            status = parse_status(agent_stdout)
+
+            head_after = get_head(repo)
+            (run_dir / "head_after.txt").write_text(head_after)
+
+            event_store.append(
+                "agent_finished",
+                payload={
+                    "agent_exit_code": agent_exit,
+                    "agent_timed_out": timed_out,
+                    "status": status,
+                    "head_after": head_after,
+                },
+                run_id=run_id,
+                iteration=iteration,
+                timestamp=timestamp,
+            )
+
+            # CHUNK-019: commit-integrity guard.
+            ok, offending = audit_commit_integrity(repo, head_before)
+            if not ok:
+                log(f"=== STOPPING: unauthorized agent commit detected: {offending[0]} ===")
+                duration = time.time() - start
+                # Agent-committed code has bypassed the loop's checkpointing policy.
+                signature = FailureSignature(
+                    kind="commit-integrity",
+                    normalized="",
+                    hash=hashlib.sha256("commit-integrity".encode()).hexdigest()[:16],
+                )
+                sha = get_head(repo)
+                entry: RunLogEntry = {
+                    "iteration": iteration,
+                    "timestamp": timestamp,
+                    "agent_exit_code": agent_exit,
+                    "agent_timed_out": timed_out,
+                    "status": status,
+                    "verify_exit_code": -1,
+                    "passed": False,
+                    "failure_kind": signature.kind,
+                    "failure_signature": signature.hash,
+                    "head_before": head_before,
+                    "head_after": head_after,
+                    "git_sha": sha,
+                    "verify_output": "",
+                    "committed": False,
+                    "duration_seconds": round(duration, 1),
+                    "run_dir": str(run_dir.relative_to(repo)),
+                }
+                write_log_entry(log_path, entry)
+                event_store.append(
+                    "iteration_finished",
+                    payload=dict(entry),
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                event_store.append(
+                    "guard_trip",
+                    payload={"kind": "commit-integrity", "offending": offending},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                event_store.append(
+                    "stop",
+                    payload={"reason": "commit-integrity", "exit_code": 4},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                write_escalation_brief(repo, task_text, read_log(log_path))
+                return 4
+
+            # CHUNK-020: test-tamper guard.
+            tamper_ok, tamper_paths = scan_tamper(repo, head_before, permitted_paths)
+            if not tamper_ok:
+                log(f"=== STOPPING: tamper guard triggered by {tamper_paths} ===")
+                duration = time.time() - start
+                signature = FailureSignature(
+                    kind="tamper",
+                    normalized="",
+                    hash=hashlib.sha256("tamper".encode()).hexdigest()[:16],
+                )
+                sha = get_head(repo)
+                entry: RunLogEntry = {
+                    "iteration": iteration,
+                    "timestamp": timestamp,
+                    "agent_exit_code": agent_exit,
+                    "agent_timed_out": timed_out,
+                    "status": status,
+                    "verify_exit_code": -1,
+                    "passed": False,
+                    "failure_kind": signature.kind,
+                    "failure_signature": signature.hash,
+                    "head_before": head_before,
+                    "head_after": head_after,
+                    "git_sha": sha,
+                    "verify_output": "",
+                    "committed": False,
+                    "duration_seconds": round(duration, 1),
+                    "run_dir": str(run_dir.relative_to(repo)),
+                }
+                write_log_entry(log_path, entry)
+                event_store.append(
+                    "iteration_finished",
+                    payload=dict(entry),
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                event_store.append(
+                    "guard_trip",
+                    payload={"kind": "tamper", "offending_paths": tamper_paths},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                event_store.append(
+                    "stop",
+                    payload={"reason": "tamper", "exit_code": 4},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                write_escalation_brief(repo, task_text, read_log(log_path))
+                return 4
+
+            verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
+            (run_dir / "verify_output.txt").write_text(verify_output)
+
+            signature = failure_signature(
+                verify_output,
+                agent_exit,
+                timed_out,
+                agent_stderr,
+                verify_exit,
+                repo_path=repo,
+                repo_root=REPO_ROOT,
+            )
+            passed = signature.kind == "verify-pass"
+
+            event_store.append(
+                "verify_result",
+                payload={
+                    "verify_exit_code": verify_exit,
+                    "verify_output": verify_output,
+                    "passed": passed,
+                    "failure_kind": signature.kind,
+                    "failure_signature": signature.hash,
+                },
+                run_id=run_id,
+                iteration=iteration,
+                timestamp=timestamp,
+            )
+
+            sha, committed = git_commit_iteration(repo, iteration, passed)
+            duration = time.time() - start
+
             entry: RunLogEntry = {
                 "iteration": iteration,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "timestamp": timestamp,
                 "agent_exit_code": agent_exit,
                 "agent_timed_out": timed_out,
                 "status": status,
-                "verify_exit_code": -1,
-                "passed": False,
+                "verify_exit_code": verify_exit,
+                "verify_output": verify_output,
+                "passed": passed,
                 "failure_kind": signature.kind,
                 "failure_signature": signature.hash,
                 "head_before": head_before,
                 "head_after": head_after,
                 "git_sha": sha,
-                "verify_output": "",
-                "committed": False,
+                "committed": committed,
                 "duration_seconds": round(duration, 1),
                 "run_dir": str(run_dir.relative_to(repo)),
             }
             write_log_entry(log_path, entry)
-            write_escalation_brief(repo, task_text, read_log(log_path))
-            return 4
-
-        # CHUNK-020: test-tamper guard.
-        tamper_ok, tamper_paths = scan_tamper(repo, head_before, permitted_paths)
-        if not tamper_ok:
-            log(f"=== STOPPING: tamper guard triggered by {tamper_paths} ===")
-            duration = time.time() - start
-            signature = FailureSignature(
-                kind="tamper",
-                normalized="",
-                hash=hashlib.sha256("tamper".encode()).hexdigest()[:16],
+            event_store.append(
+                "iteration_finished",
+                payload=dict(entry),
+                run_id=run_id,
+                iteration=iteration,
+                timestamp=timestamp,
             )
-            sha = get_head(repo)
-            entry: RunLogEntry = {
-                "iteration": iteration,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "agent_exit_code": agent_exit,
-                "agent_timed_out": timed_out,
-                "status": status,
-                "verify_exit_code": -1,
-                "passed": False,
-                "failure_kind": signature.kind,
-                "failure_signature": signature.hash,
-                "head_before": head_before,
-                "head_after": head_after,
-                "git_sha": sha,
-                "verify_output": "",
-                "committed": False,
-                "duration_seconds": round(duration, 1),
-                "run_dir": str(run_dir.relative_to(repo)),
-            }
-            write_log_entry(log_path, entry)
-            write_escalation_brief(repo, task_text, read_log(log_path))
-            return 4
 
-        verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
-        (run_dir / "verify_output.txt").write_text(verify_output)
+            log(
+                f"    agent_exit={agent_exit} timed_out={timed_out} status={status} "
+                f"verify_exit={verify_exit} passed={passed} kind={signature.kind} "
+                f"signature={signature.hash} sha={sha[:8]} committed={committed}"
+            )
 
-        signature = failure_signature(
-            verify_output,
-            agent_exit,
-            timed_out,
-            agent_stderr,
-            verify_exit,
-            repo_path=repo,
-            repo_root=REPO_ROOT,
+            if passed:
+                log(f"=== PASSED on iteration {iteration} ===")
+                event_store.append(
+                    "stop",
+                    payload={"reason": "verify-pass", "exit_code": 0},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                return 0
+
+            # Guard aborts are a distinct, more serious failure class: do not retry.
+            if signature.kind == "guard":
+                log("=== STOPPING: guard blocked an action ===")
+                event_store.append(
+                    "guard_trip",
+                    payload={"kind": "guard"},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                event_store.append(
+                    "stop",
+                    payload={"reason": "guard", "exit_code": 4},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                write_escalation_brief(repo, task_text, read_log(log_path))
+                return 4
+
+            # CHUNK-021: minimal recovery ladder.
+            action = decide_action(read_log(log_path), repeat_threshold)
+            event_store.append(
+                "recovery_action",
+                payload={
+                    "kind": action.kind,
+                    "stop": action.stop,
+                    "prompt_text": action.prompt_text,
+                },
+                run_id=run_id,
+                iteration=iteration,
+                timestamp=timestamp,
+            )
+            if action.stop:
+                write_escalation_brief(repo, task_text, read_log(log_path))
+                log(f"=== STOPPING: {action.kind} after repeated failure ===")
+                event_store.append(
+                    "stop",
+                    payload={"reason": "repeated-failure", "exit_code": 3},
+                    run_id=run_id,
+                    iteration=iteration,
+                    timestamp=timestamp,
+                )
+                return 3
+
+            previous_failure = action.prompt_text
+
+        final_timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        log(f"=== STOPPING: max_iterations ({max_iterations}) reached without passing ===")
+        event_store.append(
+            "stop",
+            payload={"reason": "max-iterations", "exit_code": 2},
+            run_id=run_id,
+            timestamp=final_timestamp,
         )
-        passed = signature.kind == "verify-pass"
+        return 2
 
-        sha, committed = git_commit_iteration(repo, iteration, passed)
-        duration = time.time() - start
-
-        entry: RunLogEntry = {
-            "iteration": iteration,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "agent_exit_code": agent_exit,
-            "agent_timed_out": timed_out,
-            "status": status,
-            "verify_exit_code": verify_exit,
-            "verify_output": verify_output,
-            "passed": passed,
-            "failure_kind": signature.kind,
-            "failure_signature": signature.hash,
-            "head_before": head_before,
-            "head_after": head_after,
-            "git_sha": sha,
-            "committed": committed,
-            "duration_seconds": round(duration, 1),
-            "run_dir": str(run_dir.relative_to(repo)),
-        }
-        write_log_entry(log_path, entry)
-
-        log(
-            f"    agent_exit={agent_exit} timed_out={timed_out} status={status} "
-            f"verify_exit={verify_exit} passed={passed} kind={signature.kind} "
-            f"signature={signature.hash} sha={sha[:8]} committed={committed}"
-        )
-
-        if passed:
-            log(f"=== PASSED on iteration {iteration} ===")
-            return 0
-
-        # Guard aborts are a distinct, more serious failure class: do not retry.
-        if signature.kind == "guard":
-            log("=== STOPPING: guard blocked an action ===")
-            write_escalation_brief(repo, task_text, read_log(log_path))
-            return 4
-
-        # CHUNK-021: minimal recovery ladder.
-        action = decide_action(read_log(log_path), repeat_threshold)
-        if action.stop:
-            write_escalation_brief(repo, task_text, read_log(log_path))
-            log(f"=== STOPPING: {action.kind} after repeated failure ===")
-            return 3
-
-        previous_failure = action.prompt_text
-
-    log(f"=== STOPPING: max_iterations ({max_iterations}) reached without passing ===")
-    return 2
+    finally:
+        event_store.close()
 
 
 def main() -> int:

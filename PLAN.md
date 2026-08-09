@@ -11,11 +11,11 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 2 scoped — starting at CHUNK-013 (spikes first)
+- **Current phase:** Phase 2 complete — CHUNK-023 retro done; Phase 3 chunk-level scoping deferred
 - **Last updated:** 2026-08-09
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
-- **Phase 1 loop:** `phase1/loop.py`; tests: `phase1/test_loop.py`, `phase1/tests/test_run_log.py`
+- **Phase 1/2 loop:** `phase1/loop.py`; tests: `phase1/test_loop.py`, `phase1/tests/test_run_log.py`, `phase2/test_*.py`
 
 ---
 
@@ -358,7 +358,7 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: `pytest` on the policy (pure function: history → action) + one
     real forced-unsolvable run producing a readable escalation brief
   - Deps: 018, 020
-- [ ] **CHUNK-022** — `EventStore` retrofit (append-only, SQLite)
+- [x] **CHUNK-022** — `EventStore` retrofit (append-only, SQLite) ✅ 2026-08-09
   - Acceptance: `phase2/event_store.py` — append-only events table; loop emits
     events (iteration started/finished, verify result, guard trip, recovery
     action, stop) alongside the existing JSONL log, which stays; schema covers
@@ -366,20 +366,23 @@ unit tests and at least one real adversarial run, in the CHUNK-010 spirit.
   - Verify: `pytest` (round-trip, append-only enforced — no update/delete
     API) + one real run leaving a queryable event trail
   - Deps: 018
-- [ ] **CHUNK-023** — Retro: Phase 2 findings + Phase 3 scoping
-  - Acceptance: PLAN.md Status/Decision-log updated with what the guards and
-    ladder caught in real runs; open questions resolved or explicitly carried
-    forward; Phase 3 scoped from evidence
+- [x] **CHUNK-023** — Retro: Phase 2 findings + Phase 3 scoping ✅ 2026-08-09
+  - Acceptance: Phase 2 findings and recommendations recorded in
+    `phase2/notes/CHUNK-023.md`; `PLAN.md` Status and Decision-log updated;
+    open questions resolved or explicitly carried forward. Actual chunk-level
+    Phase 3 scoping is intentionally deferred.
   - Verify: manual review
   - Deps: 017–022
 
 ### Phase 3+ — Grow the framework outward (deferred — will be re-scoped after Phase 2)
 
-Not detailed yet, on purpose. Rough direction, mapping loosely to the original
-spec's milestones:
+Not detailed yet, on purpose. Phase 2 produced concrete findings and
+recommendations (see `phase2/notes/CHUNK-023.md`) but the actual chunk-level
+scoping of Phase 3 is deferred until the next planning session. Rough direction,
+mapping loosely to the original spec's milestones:
 
 - Formalize contracts: Pydantic domain models, `EventStore`, chunk/learning state
-  machines — *retrofitted around what Phase 1 actually needed*, not designed
+  machines — *retrofitted around what Phase 1/2 actually needed*, not designed
   speculatively.
 - Project setup: `AGENTS.md` generation, APM adapter, agent roles as Devin CLI
   permission profiles.
@@ -417,26 +420,34 @@ spec's milestones:
 | 2026-08-08 | CHUNK-010 unexpected finding: in `--permission-mode bypass` the agent can run `git commit` on its own, creating commits outside the loop's control. Phase 2 needs a guard (git command hook or post-iteration commit audit) to prevent or detect agent-authored commits. |
 | 2026-08-09 | Phase 2 scoped as a narrow Assurance + Recovery slice ("make the loop untrickable and unstickable"): guards for the failure modes CHUNK-010 actually demonstrated, `FailureSignature` + minimal recovery ladder, `EventStore` retrofit. Spike chunks (013–016) confirm behavior empirically before any implementation (017–022), mirroring the Phase 0 approach. Ontology, learning plane, Spec Kit/APM, promotion, and durability all deferred to Phase 3+. |
 | 2026-08-09 | CHUNK-012: SisyphX repo initialized with root `.gitignore` that excludes embedded demo repos (`phase0/scratch/`, `phase1/target_repo*/`) to avoid gitlink/submodule confusion. The loop produced a verified, agent-authored `pyproject.toml` on its first self-hosted task. |
+| 2026-08-09 | Phase 2 complete. The loop is now untrickable (commit-integrity + tamper guards) and unstickable (`FailureSignature` + minimal recovery ladder), and every run leaves an append-only SQLite event trail (`phase2/event_store.py`). |
+| 2026-08-09 | Source-level semantic cheating (e.g. changing `add_one` to `return x + 2` to pass a contradictory test) is not mechanically preventable by path-based guards alone. It must be caught by a stronger verifier, property tests, or human review. This is a key finding to feed into Phase 3 scoping when it happens. |
+| 2026-08-09 | The JSONL run log stays as the human-readable line record; the SQLite `EventStore` is the queryable, structured audit trail. No speculative domain models were added to the event schema; it only stores fields the loop already has. |
 
 ## Open questions
 
+### Resolved
+
+- [x] How to prevent or detect agent-initiated `git` commands (especially
+  `git commit`) in `--permission-mode bypass` — resolved in CHUNK-013/019:
+  `PreToolUse`/`exec` hook blocks `git commit`/`git push` in real time, and a
+  post-iteration commit audit catches any that slip through.
+- [x] What verification command should SisyphX use for CHUNK-012 (self-hosting)
+  — resolved: `uv run pytest`; `pyproject.toml` and `uv.lock` are in place and
+  the suite passes.
+
+### Carried forward
+
 - [ ] Whether `--sandbox` changes the CHUNK-003 grandchild-process-orphan
-  behavior — attempted in CHUNK-004, result was inconclusive (sandbox's
-  approval behavior was too inconsistent to get a clean repeated test). Low
-  priority since Phase 1 uses plain bypass mode, not sandbox, anyway.
+  behavior — attempted in CHUNK-004, result was inconclusive. Low priority since
+  Phase 2 uses plain bypass mode.
 - [ ] Whether Devin CLI's native `/loop` slash command is scriptable
-  non-interactively (worth a quick empirical check in Phase 0, though SisyphX's own
-  outer loop is still needed for *independent* verification regardless).
+  non-interactively (worth a quick empirical check, though SisyphX's own outer
+  loop is still needed for independent verification).
 - [ ] Second verification adapter target language — deferred until a real second
   project is in scope.
-- [ ] How to prevent or detect agent-initiated `git` commands (especially
-  `git commit`) in `--permission-mode bypass` — demonstrated in CHUNK-010. A
-  `PreToolUse`/`exec` hook that blocks `git` commands is the leading candidate,
-  but needs validation against the CLI's behavior.
-- [ ] What verification command should SisyphX use for CHUNK-012 (self-hosting).
-  SisyphX itself is not yet a pytest project; need to decide whether to add
-  `pyproject.toml`/tests to the main repo, or to use a shell-based "golden
-  file" verification for the first self-hosted task.
+- [ ] Event-store retention — how long should raw events live, what should be
+  summarized/archived, and when should the SQLite DB be rotated?
 
 ---
 

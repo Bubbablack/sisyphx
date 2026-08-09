@@ -11,6 +11,7 @@ import pytest
 
 import loop
 from loop import read_log, run_loop
+from phase2.event_store import EventStore
 
 
 @pytest.fixture
@@ -340,3 +341,44 @@ def test_run_loop_log_entry_contains_all_canonical_fields(real_repo, monkeypatch
     assert entry["verify_exit_code"] == 0
     assert entry["passed"] is True
     assert entry["duration_seconds"] >= 0
+
+
+def test_run_loop_writes_queryable_event_trail(real_repo, monkeypatch):
+    """Every run also persists a matching event trail in SQLite."""
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (0, "ok"),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="true",
+        max_iterations=1,
+        log=lambda *a: None,
+    )
+    assert exit_code == 0
+
+    store = EventStore(real_repo / ".agent-state" / "events.db")
+    events = store.get_events()
+    types = [e.event_type for e in events]
+    assert "run_started" in types
+    assert "iteration_started" in types
+    assert "agent_finished" in types
+    assert "verify_result" in types
+    assert "iteration_finished" in types
+    assert "stop" in types
+
+    stop = [e for e in events if e.event_type == "stop"][-1]
+    assert stop.payload["reason"] == "verify-pass"
+    assert stop.payload["exit_code"] == 0
+
+    verify_event = [e for e in events if e.event_type == "verify_result"][0]
+    assert verify_event.payload["passed"] is True
+    assert verify_event.payload["failure_kind"] == "verify-pass"
+    assert verify_event.run_id == [e for e in events if e.event_type == "run_started"][0].run_id
+
+    store.close()
