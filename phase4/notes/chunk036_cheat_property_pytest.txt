@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- /Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk036/cheat/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk036/cheat
+configfile: pyproject.toml
+plugins: hypothesis-6.165.5
+collecting ... collected 9 items
+
+test_listutils_property.py::test_rotate_left_index_relationship PASSED   [ 11%]
+test_listutils_property.py::test_rotate_left_preserves_length PASSED     [ 22%]
+test_listutils_property.py::test_rotate_left_preserves_elements PASSED   [ 33%]
+test_listutils_property.py::test_rotate_left_by_zero_is_identity PASSED  [ 44%]
+test_listutils_property.py::test_rotate_left_wraps_by_length PASSED      [ 55%]
+test_listutils_property.py::test_rotate_left_by_length_is_identity PASSED [ 66%]
+test_listutils_property.py::test_rotate_left_composition PASSED          [ 77%]
+test_listutils_property.py::test_rotate_left_empty_list FAILED           [ 88%]
+test_listutils_property.py::test_rotate_left_returns_new_list PASSED     [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_rotate_left_empty_list __________________________
+
+    @given(lst=st.lists(st.integers()))
+>   def test_rotate_left_empty_list(lst):
+                   ^^^
+E   hypothesis.errors.FailedHealthCheck: It looks like this test is filtering out a lot of inputs. 0 inputs were generated successfully, while 50 inputs were filtered out. 
+E   
+E   An input might be filtered out by calls to assume(), strategy.filter(...), or occasionally by Hypothesis internals.
+E   
+E   Applying this much filtering makes input generation slow, since Hypothesis must discard inputs which are filtered out and try generating it again. It is also possible that applying this much filtering will distort the domain and/or distribution of the test, leaving your testing less rigorous than expected.
+E   
+E   If you expect this many inputs to be filtered out during generation, you can disable this health check with @settings(suppress_health_check=[HealthCheck.filter_too_much]). See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck for details.
+
+test_listutils_property.py:86: FailedHealthCheck
+---------------------------------- Hypothesis ----------------------------------
+You can reproduce this failure by adding @seed(47358920733065049524567795680568889272) to this test, or by running pytest with --hypothesis-seed=47358920733065049524567795680568889272.
+=========================== short test summary info ============================
+FAILED test_listutils_property.py::test_rotate_left_empty_list - hypothesis.e...
+========================= 1 failed, 8 passed in 3.26s ==========================
+Using CPython 3.13.0 interpreter at: /usr/local/opt/python@3.13/bin/python3.13
+Creating virtual environment at: .venv
+   Building harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk036/cheat
+      Built harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk036/cheat
+Installed 8 packages in 40ms

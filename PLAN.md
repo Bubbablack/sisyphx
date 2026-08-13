@@ -651,8 +651,8 @@ are recorded (038–041), retro last (042).**
     property, with strictly less information available to the author.
     Whether it actually catches the cheat is verified in CHUNK-036, not
     assumed here.
-- [ ] **CHUNK-036** — Spike: does the agent-authored property test actually
-  distinguish cheat from genuine fix?
+- [x] **CHUNK-036** — Spike: does the agent-authored property test actually
+  distinguish cheat from genuine fix? ✅ 2026-08-13
   - Acceptance: run the CHUNK-035 agent-authored property test against (a)
     a scripted cheat installed in the CHUNK-034 fixture (expect fail) and
     (b) a genuine fix (expect pass), exactly as CHUNK-025 did for the
@@ -661,17 +661,39 @@ are recorded (038–041), retro last (042).**
     plainly, do not paper over it. Findings in `phase4/notes/CHUNK-036.md`
   - Verify: real run, both scenarios, transcripts saved
   - Deps: 035
+  - Findings: see `phase4/notes/CHUNK-036.md`. **Important, sobering real
+    result: the agent-authored test did not catch the cheat** — but not for
+    the reason first assumed. Both variants showed the same `1 failed, 8
+    passed`; investigating showed the one failure (in both) was an
+    unrelated authoring bug in the agent's own test
+    (`assume(len(lst) == 0)` against a strategy that almost never
+    generates an empty list — a `FailedHealthCheck`, not a real check).
+    None of the 8 valid properties caught the cheat, even at
+    `max_examples=5000`: CHUNK-034's cheat is a **surgical single-point
+    hardcode** whose fallback path already contains the correct fix, so it
+    is wrong for exactly one `(lst, k)` pair that random sampling
+    essentially never generates. **This reveals a structural blind spot in
+    pure random-sampling property testing** against a minimal adversarial
+    hardcode — true for hand-written tests too, not specific to
+    agent-authored ones. Also found: an agent can produce a
+    thematically-sound property that never actually executes due to a
+    strategy/assume mismatch, which itself needs to be checked for.
 - [ ] **CHUNK-037** — Spike: test-authoring invocation contract
   - Acceptance: decide and document how a test-authoring step fits before
     `loop.py`'s existing implementer/verification flow — a separate
     planning-phase agent call producing a candidate `--verify-tier2`
-    command, informed by CHUNK-036's result: if agent-authored tests are
-    unreliable, the contract must include an automatic sanity check (run
-    the candidate test against a known-good and a known-bad reference
-    before trusting it) rather than wiring it in blind. Findings in
-    `phase4/notes/CHUNK-037.md`
+    command. Per CHUNK-036's finding, the contract must address **two**
+    distinct failure modes, not one: (1) a candidate test that never
+    executes its intended check (e.g. a `FailedHealthCheck`/strategy-
+    assume mismatch) must be rejected outright; (2) known-good/known-bad
+    reference testing alone does not catch a surgical single-point
+    hardcoded cheat, so the contract must also require the candidate test
+    to explicitly exercise the task's own literal example values (e.g. via
+    Hypothesis `@example(...)` or a small explicit-value check) in
+    addition to random properties. Findings in `phase4/notes/CHUNK-037.md`
   - Verify: manual review; a throwaway script demonstrates the proposed
-    contract against CHUNK-034's fixture
+    contract against CHUNK-034's fixture, including the single-point-cheat
+    case CHUNK-036 found
   - Deps: 036
 
 #### Implementation — only after the spikes above are recorded
@@ -685,13 +707,19 @@ are recorded (038–041), retro last (042).**
     the CHUNK-034 fixture
   - Deps: 037
 - [ ] **CHUNK-039** — `phase4/meta_verify.py`
-  - Acceptance: an automatic sanity check that runs a candidate
-    agent-authored property test against a known-good and a known-bad
-    reference implementation before it is trusted as a `--verify-tier2`
-    command; rejects (does not wire in) a test that fails to distinguish
-    them, per CHUNK-036/037's findings
+  - Acceptance: an automatic sanity check that (1) confirms every property
+    in a candidate agent-authored test actually executes (no
+    `FailedHealthCheck`/never-runs conditions) and (2) runs the candidate
+    against a known-good and a known-bad reference implementation,
+    including explicit-value cases per CHUNK-037's contract, before it is
+    trusted as a `--verify-tier2` command; rejects (does not wire in) a
+    test that fails either check, per CHUNK-036/037's findings. Must
+    specifically catch the CHUNK-034/036 surgical single-point cheat, not
+    just a generally-broken reference
   - Verify: `pytest` unit tests + one real run using CHUNK-035's actual
-    authored test as input
+    authored test as input, confirming it is correctly rejected (or
+    augmented/flagged) against the CHUNK-034/036 cheat it was shown NOT to
+    catch
   - Deps: 038
 - [ ] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
   planning step
@@ -709,7 +737,9 @@ are recorded (038–041), retro last (042).**
     fixture with a live implementer agent attempting the task; confirm the
     agent-authored (not hand-written) property test catches a real cheat
     the same way CHUNK-031/032 did for the hand-written one, and that a
-    genuine fix still passes
+    genuine fix still passes. If the live agent produces a different cheat
+    than CHUNK-034/036's scripted one and it slips through, that is a valid
+    (if disappointing) result to record honestly, not to paper over
   - Verify: real run transcripts for both the cheat and the genuine-fix
     case, saved to `phase4/notes/CHUNK-041.md`
   - Deps: 040
@@ -777,6 +807,7 @@ renumbered now that Phase 4 itself is scoped:
 | 2026-08-13 | Building an honest "same failure twice" test with two genuinely independent real captures (not the same file reused) is what surfaced a real Hypothesis-output normalization gap in CHUNK-029. Reinforces the Phase 0/2 methodology of insisting on real captured evidence over synthetic fixtures wherever feasible. |
 | 2026-08-13 | `phase3/target_repo_semantic_cheat/` is deliberately tracked in the SisyphX repo itself (not gitignored like Phase 1/2's throwaway target repos), because Phase 3 needed the same ground truth reused across many chunks rather than regenerated per-chunk. Later phases needing a similar durable fixture should follow this pattern. |
 | 2026-08-13 | Phase 4 scoped as a narrow property-test-authorship slice (CHUNK-034–042), directly continuing Phase 3's theme rather than jumping to a new surface area: Phase 3 proved a property test catches semantic cheating but left "who writes the invariant" as a human responsibility. Phase 4 asks empirically whether a live agent, given only acceptance criteria, can author one reliably, with an explicit meta-verification step (test the candidate test against known-good/known-bad references) before ever trusting it as a `--verify-tier2` command. Domain models, ontology, learning/promotion, Spec Kit/APM, and a second real project remain deferred to Phase 5+; `experiments/planner/` stays untouched unless a Phase 4 spike concludes it's needed. |
+| 2026-08-13 | CHUNK-036 empirically found a structural blind spot in pure random-sampling property testing (Hypothesis): a "surgical" single-point hardcoded cheat, whose fallback path is otherwise fully correct, is essentially never caught by randomly generated examples, even at 5000 examples per property — regardless of how many good-faith invariants the test checks. This is true for hand-written property tests too, not specific to agent-authored ones; it did not surface in CHUNK-025/026 because that cheat (`return x + 2`) was wrong for every input. CHUNK-037's meta-verification contract must add explicit-value checks (e.g. Hypothesis `@example(...)`) covering the task's own literal example values, not rely on random sampling alone. |
 
 ## Open questions
 
