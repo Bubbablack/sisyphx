@@ -776,8 +776,8 @@ are recorded (038–041), retro last (042).**
     on an independent genuine-fix copy (exit 0). Meta-verification made an
     unreliable agent-authored test safe to trust without any manual
     re-authoring or patching.
-- [ ] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
-  planning step
+- [x] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
+  planning step ✅ 2026-08-13
   - Acceptance: a script that runs `test_author` → `meta_verify` → only if
     sound, invokes `phase1/loop.py --verify-tier2` with the authored test;
     if the authored test fails meta-verification, stop and escalate to a
@@ -786,6 +786,24 @@ are recorded (038–041), retro last (042).**
   - Verify: `pytest` (stubbed) + one real run covering both the sound-test
     and rejected-test paths
   - Deps: 039
+  - Findings: see `phase4/notes/CHUNK-040.md`, `phase4/plan_and_run.py`,
+    `phase4/test_plan_and_run.py`, and `phase4/run_chunk_040.py`. 4 unit
+    tests (stubbed authoring/meta-verify/loop-invocation); full suite 104
+    passed. **Real run with a genuinely live authoring agent call on both
+    paths** (not mocked): the rejected path (`known_good_source ==
+    known_bad_source`, nothing can discriminate) correctly stopped with
+    exit 5 and an escalation brief **without ever invoking the
+    implementer agent**; the sound path invoked the real implementer
+    agent, which refused to cheat on both iterations (contradictory test
+    correctly identified), hitting `max_iterations` honestly rather than a
+    false pass — tier 2 was never exercised this particular run since
+    tier 1 never passed, which is CHUNK-041's job to push further, not
+    this chunk's. **Found and fixed a real integration bug**: the first
+    real run returned a guard/tamper exit (4) because the meta-verified
+    test files were written but never committed before the loop started —
+    `phase1/loop.py`'s tamper guard saw them as agent-introduced on the
+    very first iteration. Fixed by committing them (as a `SisyphX
+    Loop`-authored commit) before invoking the loop at all.
 - [ ] **CHUNK-041** — Real end-to-end run: full authoring pipeline catches a
   live cheat on the harder fixture
   - Acceptance: run the full CHUNK-040 pipeline against the CHUNK-034
