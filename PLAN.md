@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 3 complete — CHUNK-033 retro done; Phase 4 chunk-level scoping deferred
+- **Current phase:** Phase 4 scoped — property-test-authorship slice (CHUNK-034–042), not yet started
 - **Last updated:** 2026-08-13
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -591,20 +591,129 @@ each spike's findings are recorded (028–032), retro last (033).**
   - Deps: 024–032
   - See `phase3/notes/CHUNK-033.md` — full retro. **Phase 3 complete.**
 
-### Phase 4+ — Grow the framework outward (deferred — will be re-scoped after Phase 3)
+### Phase 4 — Can the loop write its own tier-2 tests?
 
-Not detailed yet, on purpose. Rough direction, mapping loosely to the original
-spec's milestones, unchanged from the earlier Phase 3+ placeholder except
-renumbered now that Phase 3 itself is scoped:
+Goal: close the property-test-authorship gap CHUNK-033's retro identified —
+Phase 3 proved a property test reliably catches semantic cheating, but
+nothing in the framework decides *when* a chunk needs one or *writes* it; a
+human still has to know the real contract and state it as an invariant.
+Phase 4 asks, empirically: can an agent, given only a task's acceptance
+criteria (not the buggy implementation), author a property test that
+actually distinguishes a cheat from a genuine fix? Scope is deliberately
+narrow, still self-hosting, no domain models/ontology/learning/Spec Kit —
+same discipline as Phase 0/2/3. `experiments/planner/` stays untouched
+unless a spike below concludes it's needed. Structured the same way:
+**spikes first (034–037), implementation only after each spike's findings
+are recorded (038–041), retro last (042).**
+
+#### Spikes — learn and confirm first (no framework code)
+
+- [ ] **CHUNK-034** — Spike: a harder semantic-cheat scenario than `calc.py`
+  - Acceptance: pick a function whose real contract is less trivially
+    invertible than "add one" (e.g. something with a multi-step or
+    order-dependent contract), construct a genuine bug plus a
+    contradictory/weak example test for it, and commit it as a permanent,
+    tracked fixture `phase4/target_repo_harder_cheat/` (same convention as
+    CHUNK-024 — tracked source, gitignored scratch copies only). Findings
+    in `phase4/notes/CHUNK-034.md`
+  - Verify: manual/scripted run reproduces a scripted cheat against the new
+    fixture, mirroring CHUNK-024's method
+  - Deps: 024 (fixture convention), 033 (retro)
+- [ ] **CHUNK-035** — Spike: can a live agent author a property test from
+  acceptance criteria alone?
+  - Acceptance: give a live Devin CLI agent *only* the CHUNK-034 fixture's
+    task/acceptance criteria (not the buggy implementation, not any hint
+    about cheating) and ask it to author a property test for the function's
+    real contract. Capture the actual authored test file and transcript.
+    Findings in `phase4/notes/CHUNK-035.md`
+  - Verify: real live-agent run, transcript + authored test file saved
+  - Deps: 034
+- [ ] **CHUNK-036** — Spike: does the agent-authored property test actually
+  distinguish cheat from genuine fix?
+  - Acceptance: run the CHUNK-035 agent-authored property test against (a)
+    a scripted cheat installed in the CHUNK-034 fixture (expect fail) and
+    (b) a genuine fix (expect pass), exactly as CHUNK-025 did for the
+    hand-written property test. If the agent's test does not cleanly
+    distinguish them, that failure mode itself is the finding — document it
+    plainly, do not paper over it. Findings in `phase4/notes/CHUNK-036.md`
+  - Verify: real run, both scenarios, transcripts saved
+  - Deps: 035
+- [ ] **CHUNK-037** — Spike: test-authoring invocation contract
+  - Acceptance: decide and document how a test-authoring step fits before
+    `loop.py`'s existing implementer/verification flow — a separate
+    planning-phase agent call producing a candidate `--verify-tier2`
+    command, informed by CHUNK-036's result: if agent-authored tests are
+    unreliable, the contract must include an automatic sanity check (run
+    the candidate test against a known-good and a known-bad reference
+    before trusting it) rather than wiring it in blind. Findings in
+    `phase4/notes/CHUNK-037.md`
+  - Verify: manual review; a throwaway script demonstrates the proposed
+    contract against CHUNK-034's fixture
+  - Deps: 036
+
+#### Implementation — only after the spikes above are recorded
+
+- [ ] **CHUNK-038** — `phase4/test_author.py`
+  - Acceptance: a callable step that invokes a live Devin CLI agent with
+    only a task's acceptance criteria and returns a candidate property-test
+    file, per CHUNK-037's contract. Config-driven, not hardcoded to the
+    CHUNK-034 fixture
+  - Verify: `pytest` unit tests (stubbed subprocess) + one real run against
+    the CHUNK-034 fixture
+  - Deps: 037
+- [ ] **CHUNK-039** — `phase4/meta_verify.py`
+  - Acceptance: an automatic sanity check that runs a candidate
+    agent-authored property test against a known-good and a known-bad
+    reference implementation before it is trusted as a `--verify-tier2`
+    command; rejects (does not wire in) a test that fails to distinguish
+    them, per CHUNK-036/037's findings
+  - Verify: `pytest` unit tests + one real run using CHUNK-035's actual
+    authored test as input
+  - Deps: 038
+- [ ] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
+  planning step
+  - Acceptance: a script that runs `test_author` → `meta_verify` → only if
+    sound, invokes `phase1/loop.py --verify-tier2` with the authored test;
+    if the authored test fails meta-verification, stop and escalate to a
+    human rather than running the implementer agent unprotected or silently
+    falling back to tier 1 only
+  - Verify: `pytest` (stubbed) + one real run covering both the sound-test
+    and rejected-test paths
+  - Deps: 039
+- [ ] **CHUNK-041** — Real end-to-end run: full authoring pipeline catches a
+  live cheat on the harder fixture
+  - Acceptance: run the full CHUNK-040 pipeline against the CHUNK-034
+    fixture with a live implementer agent attempting the task; confirm the
+    agent-authored (not hand-written) property test catches a real cheat
+    the same way CHUNK-031/032 did for the hand-written one, and that a
+    genuine fix still passes
+  - Verify: real run transcripts for both the cheat and the genuine-fix
+    case, saved to `phase4/notes/CHUNK-041.md`
+  - Deps: 040
+- [ ] **CHUNK-042** — Retro: Phase 4 findings + Phase 5 scoping
+  - Acceptance: Phase 4 findings and recommendations recorded in
+    `phase4/notes/CHUNK-042.md`; `PLAN.md` Status and Decision-log updated;
+    open questions resolved or explicitly carried forward. Actual
+    chunk-level Phase 5 scoping is intentionally deferred, same pattern as
+    CHUNK-023/033
+  - Verify: manual review
+  - Deps: 034–041
+
+### Phase 5+ — Grow the framework outward (deferred — will be re-scoped after Phase 4)
+
+Not detailed yet, on purpose. Rough direction, mapping loosely to the
+original spec's milestones, unchanged from the earlier placeholder except
+renumbered now that Phase 4 itself is scoped:
 
 - Formalize contracts: Pydantic domain models, `EventStore`, chunk/learning state
-  machines — *retrofitted around what Phase 1/2/3 actually needed*, not designed
+  machines — *retrofitted around what Phase 1–4 actually needed*, not designed
   speculatively.
 - Project setup: `AGENTS.md` generation, APM adapter, agent roles as Devin CLI
   permission profiles.
 - Specification pipeline: Spec Kit artifact import, task → chunk conversion,
   dependency ordering, approval gate. Revisit `experiments/planner/` here if
-  its ticket+chunk format is still wanted.
+  its ticket+chunk format is still wanted (and if Phase 4 didn't already
+  need something like it for the authoring step).
 - Recovery: further failure taxonomy beyond CHUNK-029's tier-specific kinds,
   Tenacity for transient-only, investigator role, checkpoint rollback.
 - Human intervention: pause/resume, escalation brief, durable feedback.
@@ -613,8 +722,8 @@ renumbered now that Phase 3 itself is scoped:
   champion/challenger.
 - Promotion: intervention classifier, numeric promotion criteria, APM
   publication, monitoring, rollback.
-- Advanced verification: Testcontainers, MegaLinter, dependency scanning
-  (Hypothesis/mutation testing now covered by Phase 3 instead of deferred here).
+- Advanced verification: Testcontainers, MegaLinter, dependency scanning,
+  mutation testing as an optional chunk/feature-level check (CHUNK-026).
 - Durability & UI: Postgres, DBOS, Phoenix, additional agent adapters.
 - A concrete second target project/use case, once one exists.
 
@@ -644,6 +753,7 @@ renumbered now that Phase 3 itself is scoped:
 | 2026-08-13 | `mutmut` is not viable in this environment (dependency-wheel friction + an internal crash); `cosmic-ray` works but is a chunk/feature-level tool, not an attempt-level one, and only adds value on top of an already-strong test (e.g. a property test) — it is not a substitute for one. Mutation testing is deferred as an optional, non-required addition for Phase 4+. |
 | 2026-08-13 | Building an honest "same failure twice" test with two genuinely independent real captures (not the same file reused) is what surfaced a real Hypothesis-output normalization gap in CHUNK-029. Reinforces the Phase 0/2 methodology of insisting on real captured evidence over synthetic fixtures wherever feasible. |
 | 2026-08-13 | `phase3/target_repo_semantic_cheat/` is deliberately tracked in the SisyphX repo itself (not gitignored like Phase 1/2's throwaway target repos), because Phase 3 needed the same ground truth reused across many chunks rather than regenerated per-chunk. Later phases needing a similar durable fixture should follow this pattern. |
+| 2026-08-13 | Phase 4 scoped as a narrow property-test-authorship slice (CHUNK-034–042), directly continuing Phase 3's theme rather than jumping to a new surface area: Phase 3 proved a property test catches semantic cheating but left "who writes the invariant" as a human responsibility. Phase 4 asks empirically whether a live agent, given only acceptance criteria, can author one reliably, with an explicit meta-verification step (test the candidate test against known-good/known-bad references) before ever trusting it as a `--verify-tier2` command. Domain models, ontology, learning/promotion, Spec Kit/APM, and a second real project remain deferred to Phase 5+; `experiments/planner/` stays untouched unless a Phase 4 spike concludes it's needed. |
 
 ## Open questions
 
