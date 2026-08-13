@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk039/fix_check
+configfile: pyproject.toml
+plugins: hypothesis-6.165.5
+collected 11 items / 1 deselected / 10 selected
+
+test_listutils_property.py ........                                      [ 80%]
+test_literal_examples.py ..                                              [100%]
+
+======================= 10 passed, 1 deselected in 3.76s =======================
+Using CPython 3.13.0 interpreter at: /usr/local/opt/python@3.13/bin/python3.13
+Creating virtual environment at: .venv
+   Building harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk039/fix_check
+      Built harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk039/fix_check
+Installed 8 packages in 37ms

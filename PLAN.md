@@ -740,7 +740,7 @@ are recorded (038–041), retro last (042).**
     CHUNK-036's `assume()`-health-check bug entirely by writing its empty-
     list handling directly into the main contract property instead of a
     separate `assume()`-filtered test.
-- [ ] **CHUNK-039** — `phase4/meta_verify.py`
+- [x] **CHUNK-039** — `phase4/meta_verify.py` ✅ 2026-08-13
   - Acceptance: per-*individual-check* filtering, not combined-exit-code
     checking (CHUNK-037's second finding): (1) always generate and append
     the `phase4/literal_examples.py` companion test to the agent-authored
@@ -760,6 +760,22 @@ are recorded (038–041), retro last (042).**
     property is discarded rather than blocking the genuine-fix reference,
     and the surgical cheat is still caught via the literal-example file
   - Deps: 038
+  - Findings: see `phase4/notes/CHUNK-039.md`, `phase4/meta_verify.py`,
+    `phase4/test_meta_verify.py`, and `phase4/run_chunk_039.py`. Built
+    `meta_verify()`: run every check against a known-good reference via
+    `--junitxml` (robust per-test parsing, not stdout scraping), discard
+    any that fail there, then run survivors against a known-bad reference
+    to find discriminating checks; produces a `verify_tier2_command` with
+    discarded checks explicitly `--deselect`ed. 5 unit tests against a
+    synthetic fixture; full suite 100 passed. **Real run confirmed both
+    halves precisely**: fed CHUNK-035's actual authored test (with its
+    known `FailedHealthCheck` bug) through it — `test_rotate_left_empty_list`
+    was correctly discarded, and the resulting command (which deselects
+    only that one check) still caught the real CHUNK-034/036 surgical
+    cheat (exit 1, via the literal-example check) and still passed cleanly
+    on an independent genuine-fix copy (exit 0). Meta-verification made an
+    unreliable agent-authored test safe to trust without any manual
+    re-authoring or patching.
 - [ ] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
   planning step
   - Acceptance: a script that runs `test_author` → `meta_verify` → only if
