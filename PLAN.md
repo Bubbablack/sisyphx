@@ -11,11 +11,11 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 3 scoped — verification-engine slice (CHUNK-024–033), not yet started
+- **Current phase:** Phase 3 in progress — spikes 024–027 and CHUNK-028 done; CHUNK-029 next
 - **Last updated:** 2026-08-13
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
-- **Phase 1/2 loop:** `phase1/loop.py`; tests: `phase1/test_loop.py`, `phase1/tests/test_run_log.py`, `phase2/test_*.py`
+- **Phase 1/2 loop:** `phase1/loop.py`; tests: `phase1/test_loop.py`, `phase1/tests/test_run_log.py`, `phase2/test_*.py`, `phase3/test_*.py`
 
 ---
 
@@ -480,7 +480,7 @@ each spike's findings are recorded (028–032), retro last (033).**
 
 #### Implementation — only after the spikes above are recorded
 
-- [ ] **CHUNK-028** — `phase3/verification_tiers.py`
+- [x] **CHUNK-028** — `phase3/verification_tiers.py` ✅ 2026-08-13
   - Acceptance: pluggable second-verification-tier interface per CHUNK-027's
     contract (property-test runner and/or mutation-test runner, whichever
     CHUNK-025/026 selected), config-driven per project/chunk, explicit
@@ -489,6 +489,16 @@ each spike's findings are recorded (028–032), retro last (033).**
   - Verify: `pytest` unit tests (stubbed subprocess) + one real run against
     the CHUNK-024 fixture
   - Deps: 027
+  - Findings: see `phase3/notes/CHUNK-028.md`, `phase3/verification_tiers.py`,
+    `phase3/test_verification_tiers.py`, and `phase3/run_chunk_028.py`.
+    Promoted the CHUNK-027 throwaway demo into the real module, adding a
+    `timed_out` flag per tier and `DEFAULT_TIER2_TIMEOUT_SECONDS = 30`
+    (informed by CHUNK-025's ~1-2s property-test measurement and CHUNK-026's
+    52-64s mutation-testing measurement). 7 new unit tests (stubbed
+    `subprocess.run`) cover both timeout paths and the exact `shell=True`/
+    `cwd` invocation convention; full suite is 73 passed. Real run against
+    the same normal/cheat scenarios as CHUNK-027 confirmed the promoted
+    module behaves identically (`verify-pass` / `verify-tier2-fail`).
 - [ ] **CHUNK-029** — New failure kinds for verification-tier results
   - Acceptance: `FailureSignature`/failure classification (CHUNK-017/018)
     gains distinct kinds for the new tier (e.g. `property-fail`,
