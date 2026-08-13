@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 3 in progress — spikes 024–027 and CHUNK-028 done; CHUNK-029 next
+- **Current phase:** Phase 3 complete — CHUNK-033 retro done; Phase 4 chunk-level scoping deferred
 - **Last updated:** 2026-08-13
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -582,13 +582,14 @@ each spike's findings are recorded (028–032), retro last (033).**
     **real live agent** — fixed the bug correctly on iteration 1, passing
     both tiers cleanly (`verify-pass`) with zero added friction from the new
     tier.
-- [ ] **CHUNK-033** — Retro: Phase 3 findings + Phase 4 scoping
+- [x] **CHUNK-033** — Retro: Phase 3 findings + Phase 4 scoping ✅ 2026-08-13
   - Acceptance: Phase 3 findings and recommendations recorded in
     `phase3/notes/CHUNK-033.md`; `PLAN.md` Status and Decision-log updated;
     open questions resolved or explicitly carried forward. Actual chunk-level
     Phase 4 scoping is intentionally deferred, same pattern as CHUNK-023
   - Verify: manual review
   - Deps: 024–032
+  - See `phase3/notes/CHUNK-033.md` — full retro. **Phase 3 complete.**
 
 ### Phase 4+ — Grow the framework outward (deferred — will be re-scoped after Phase 3)
 
@@ -639,6 +640,10 @@ renumbered now that Phase 3 itself is scoped:
 | 2026-08-09 | Source-level semantic cheating (e.g. changing `add_one` to `return x + 2` to pass a contradictory test) is not mechanically preventable by path-based guards alone. It must be caught by a stronger verifier, property tests, or human review. This is a key finding to feed into Phase 3 scoping when it happens. |
 | 2026-08-09 | The JSONL run log stays as the human-readable line record; the SQLite `EventStore` is the queryable, structured audit trail. No speculative domain models were added to the event schema; it only stores fields the loop already has. |
 | 2026-08-13 | Phase 3 scoped as a narrow verification-engine slice (CHUNK-024–033), mirroring Phase 2's spike-then-implement structure: reproduce the CHUNK-010 semantic-cheat case as a permanent fixture, evaluate Hypothesis property tests and mutation testing against it, then wire the winning approach into `loop.py` as an opt-in second verification tier. Still self-hosting on SisyphX's own repo — no second real project yet. `experiments/planner/` (unstarted ticket+chunk markdown experiment) stays on hold and does not feed Phase 3; revisit it in Phase 4+ if the spec→chunk pipeline is still needed. Domain models, ontology, learning/promotion, and Spec Kit/APM remain deferred to Phase 4+. |
+| 2026-08-13 | Phase 3 is complete. The loop now has a real, live-agent-confirmed second verification tier (`phase3/verification_tiers.py`, wired into `loop.py` as `--verify-tier2`) that catches the exact semantic-cheat pattern CHUNK-010 first found, with zero added friction for genuine fixes. |
+| 2026-08-13 | `mutmut` is not viable in this environment (dependency-wheel friction + an internal crash); `cosmic-ray` works but is a chunk/feature-level tool, not an attempt-level one, and only adds value on top of an already-strong test (e.g. a property test) — it is not a substitute for one. Mutation testing is deferred as an optional, non-required addition for Phase 4+. |
+| 2026-08-13 | Building an honest "same failure twice" test with two genuinely independent real captures (not the same file reused) is what surfaced a real Hypothesis-output normalization gap in CHUNK-029. Reinforces the Phase 0/2 methodology of insisting on real captured evidence over synthetic fixtures wherever feasible. |
+| 2026-08-13 | `phase3/target_repo_semantic_cheat/` is deliberately tracked in the SisyphX repo itself (not gitignored like Phase 1/2's throwaway target repos), because Phase 3 needed the same ground truth reused across many chunks rather than regenerated per-chunk. Later phases needing a similar durable fixture should follow this pattern. |
 
 ## Open questions
 
@@ -651,6 +656,14 @@ renumbered now that Phase 3 itself is scoped:
 - [x] What verification command should SisyphX use for CHUNK-012 (self-hosting)
   — resolved: `uv run pytest`; `pyproject.toml` and `uv.lock` are in place and
   the suite passes.
+- [x] Can source-level semantic cheating (CHUNK-010/023's carried-forward
+  finding) be mechanically caught? — resolved in CHUNK-025/031/032: yes, for
+  chunks that supply a property test encoding the real contract; confirmed
+  with two real live Devin CLI agent runs, not just a scripted demonstration.
+- [x] Which mutation-testing tool fits this environment/budget? — resolved
+  in CHUNK-026: `mutmut` is a no-go here (dependency + crash issues);
+  `cosmic-ray` works but only fits a chunk/feature-level cadence, not
+  attempt-level, and needs a strong test to be meaningful at all.
 
 ### Carried forward
 
@@ -663,7 +676,16 @@ renumbered now that Phase 3 itself is scoped:
 - [ ] Second verification adapter target language — deferred until a real second
   project is in scope.
 - [ ] Event-store retention — how long should raw events live, what should be
-  summarized/archived, and when should the SQLite DB be rotated?
+  summarized/archived, and when should the SQLite DB be rotated? Now more
+  relevant since `verify_tier2_output` (CHUNK-030/031) adds another
+  potentially large text blob per event.
+- [ ] Whether `experiments/planner/` (the markdown ticket+chunk experiment,
+  still completely untouched — zero tickets or spikes created) is still
+  wanted, and if so, whether it should feed Phase 4's specification pipeline.
+- [ ] Whether an agent can reliably author property tests *from* an
+  acceptance-criteria spec, closing the remaining human-authorship gap
+  Phase 3 left open (property tests are cheap to write once the contract is
+  known, but nothing in Phase 3 generates that contract automatically).
 
 ---
 
