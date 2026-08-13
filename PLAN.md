@@ -521,13 +521,27 @@ each spike's findings are recorded (028–032), retro last (033).**
     artifacts; full suite 82 passed. Manual integration check confirmed
     `verification_tiers` output plugs directly into `failure_signature`
     with no glue code.
-- [ ] **CHUNK-030** — `EventStore` schema gains verification-tier fields
+- [x] **CHUNK-030** — `EventStore` schema gains verification-tier fields ✅ 2026-08-13
   - Acceptance: append-only schema addition (no update/delete, per
     CHUNK-022) storing the new tier's pass/fail result and summary evidence
     alongside existing verify-result events
   - Verify: `pytest` round-trip test on the new fields + one real run leaving
     a queryable event trail that includes a tier result
   - Deps: 028
+  - Findings: see `phase3/notes/CHUNK-030.md`. The `events` table's
+    `payload` column was already an opaque JSON blob (CHUNK-022), so no SQL
+    migration was needed or meaningfully possible; added
+    `EventStore.append_verify_result()` as an additive convenience method
+    defining the CHUNK-029 tier-2 field names
+    (`verify_tier2_ran`/`verify_tier2_exit_code`/`verify_tier2_output`) in
+    exactly one place, harmless-default when no tier 2 is configured, fully
+    backward compatible with raw `append("verify_result", {...})` calls.
+    2 new tests; full suite 84 passed. Real run: full
+    `verification_tiers` → `failure_signature` →
+    `EventStore.append_verify_result` pipeline against the CHUNK-024 cheat,
+    then reopened the SQLite file fresh and queried the event back by
+    `run_id`/`event_type` — confirmed durable, not just an in-memory
+    round trip.
 - [ ] **CHUNK-031** — `loop.py` wires the new tier in, opt-in per chunk
   - Acceptance: chunks that declare the new tier (per CHUNK-027's contract)
     run it as a required check in addition to the project's own verification

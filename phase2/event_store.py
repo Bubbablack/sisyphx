@@ -103,6 +103,50 @@ class EventStore:
         self._conn.commit()
         return cur.lastrowid  # type: ignore[return-value]
 
+    def append_verify_result(
+        self,
+        *,
+        run_id: str,
+        iteration: int | None,
+        verify_exit_code: int,
+        verify_output: str,
+        passed: bool,
+        failure_kind: str,
+        failure_signature: str,
+        verify_tier2_ran: bool = False,
+        verify_tier2_exit_code: int | None = None,
+        verify_tier2_output: str = "",
+        timestamp: str | None = None,
+    ) -> int:
+        """CHUNK-030: append a 'verify_result' event, including the
+        CHUNK-029 second-verification-tier fields.
+
+        The `events` table schema itself needs no change for this --
+        `payload` was already an opaque JSON blob (see module docstring),
+        so any event can carry any fields. This method exists only to
+        define the tier-2 field names in exactly one place, so `loop.py`'s
+        CHUNK-031 integration (and anything reading these events back) does
+        not have to remember or guess them. Callers that never configure a
+        second tier get `verify_tier2_ran=False` and empty/`None` for the
+        rest -- a harmless, additive default, not the absence of the keys.
+        This method is additive, not a replacement API: existing
+        `append("verify_result", {...})` calls from Phase 1/2 keep working
+        exactly as before (see `test_append_verify_result_without_tier2_is_backward_compatible`).
+        """
+        payload: dict[str, Any] = {
+            "verify_exit_code": verify_exit_code,
+            "verify_output": verify_output,
+            "passed": passed,
+            "failure_kind": failure_kind,
+            "failure_signature": failure_signature,
+            "verify_tier2_ran": verify_tier2_ran,
+            "verify_tier2_exit_code": verify_tier2_exit_code,
+            "verify_tier2_output": verify_tier2_output,
+        }
+        return self.append(
+            "verify_result", payload, run_id=run_id, iteration=iteration, timestamp=timestamp
+        )
+
     def get_events(
         self,
         event_type: str | None = None,
