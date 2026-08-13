@@ -678,7 +678,7 @@ are recorded (038–041), retro last (042).**
     agent-authored ones. Also found: an agent can produce a
     thematically-sound property that never actually executes due to a
     strategy/assume mismatch, which itself needs to be checked for.
-- [ ] **CHUNK-037** — Spike: test-authoring invocation contract
+- [x] **CHUNK-037** — Spike: test-authoring invocation contract ✅ 2026-08-13
   - Acceptance: decide and document how a test-authoring step fits before
     `loop.py`'s existing implementer/verification flow — a separate
     planning-phase agent call producing a candidate `--verify-tier2`
@@ -695,6 +695,25 @@ are recorded (038–041), retro last (042).**
     contract against CHUNK-034's fixture, including the single-point-cheat
     case CHUNK-036 found
   - Deps: 036
+  - Findings: see `phase4/notes/CHUNK-037.md` and `phase4/literal_examples.py`.
+    Contract: (1) authoring stays a separate planning-phase agent call
+    (CHUNK-035); (2) the framework itself — not the agent — deterministically
+    auto-extracts every literal `` `func(args) == expected` `` example
+    already stated in the acceptance criteria and generates a companion
+    pytest module asserting each directly, regenerated fresh every time;
+    (3) tier 2 is the combination of the agent-authored property test and
+    this auto-generated file. Demonstrated: the auto-generated check alone
+    catches the exact CHUNK-034/036 cheat (`[1,3,2] != [3,1,2]`) the
+    property test alone missed, because the cheat's target input coincides
+    with an example already in `acceptance_criteria.txt`. **Second real
+    finding**: naive combined-exit-code checking is itself broken — the
+    agent's CHUNK-036 health-check bug fails unconditionally on every
+    variant including a genuine fix, so meta-verification must filter out
+    individual checks that fail against a known-good reference *before*
+    deciding pass/fail, not just run the combined command and check its
+    exit code. Explicit, bounded limitation recorded: this only guarantees
+    catching cheats targeting a *stated* example value, not an arbitrary
+    unstated one.
 
 #### Implementation — only after the spikes above are recorded
 
@@ -707,19 +726,24 @@ are recorded (038–041), retro last (042).**
     the CHUNK-034 fixture
   - Deps: 037
 - [ ] **CHUNK-039** — `phase4/meta_verify.py`
-  - Acceptance: an automatic sanity check that (1) confirms every property
-    in a candidate agent-authored test actually executes (no
-    `FailedHealthCheck`/never-runs conditions) and (2) runs the candidate
-    against a known-good and a known-bad reference implementation,
-    including explicit-value cases per CHUNK-037's contract, before it is
-    trusted as a `--verify-tier2` command; rejects (does not wire in) a
-    test that fails either check, per CHUNK-036/037's findings. Must
-    specifically catch the CHUNK-034/036 surgical single-point cheat, not
-    just a generally-broken reference
+  - Acceptance: per-*individual-check* filtering, not combined-exit-code
+    checking (CHUNK-037's second finding): (1) always generate and append
+    the `phase4/literal_examples.py` companion test to the agent-authored
+    one; (2) run every individual test function in both files against a
+    known-good reference and discard/flag (not count against the verdict)
+    any that fails there — this is what catches CHUNK-036's
+    `FailedHealthCheck` case without permanently blocking a correct fix;
+    (3) of the remaining, still-valid checks, confirm at least one fails
+    against a known-bad reference (the original bug) *and* the CHUNK-034
+    surgical single-point cheat specifically — reject the whole candidate
+    (do not wire in) only if no valid check catches the known-bad
+    reference, but treat the literal-example file's own failures as
+    load-bearing signal even if the agent's property file contributes
+    nothing valid
   - Verify: `pytest` unit tests + one real run using CHUNK-035's actual
-    authored test as input, confirming it is correctly rejected (or
-    augmented/flagged) against the CHUNK-034/036 cheat it was shown NOT to
-    catch
+    authored test as input, confirming: the known health-check-broken
+    property is discarded rather than blocking the genuine-fix reference,
+    and the surgical cheat is still caught via the literal-example file
   - Deps: 038
 - [ ] **CHUNK-040** — Wire authoring + meta-verification into a pre-loop
   planning step
@@ -808,6 +832,7 @@ renumbered now that Phase 4 itself is scoped:
 | 2026-08-13 | `phase3/target_repo_semantic_cheat/` is deliberately tracked in the SisyphX repo itself (not gitignored like Phase 1/2's throwaway target repos), because Phase 3 needed the same ground truth reused across many chunks rather than regenerated per-chunk. Later phases needing a similar durable fixture should follow this pattern. |
 | 2026-08-13 | Phase 4 scoped as a narrow property-test-authorship slice (CHUNK-034–042), directly continuing Phase 3's theme rather than jumping to a new surface area: Phase 3 proved a property test catches semantic cheating but left "who writes the invariant" as a human responsibility. Phase 4 asks empirically whether a live agent, given only acceptance criteria, can author one reliably, with an explicit meta-verification step (test the candidate test against known-good/known-bad references) before ever trusting it as a `--verify-tier2` command. Domain models, ontology, learning/promotion, Spec Kit/APM, and a second real project remain deferred to Phase 5+; `experiments/planner/` stays untouched unless a Phase 4 spike concludes it's needed. |
 | 2026-08-13 | CHUNK-036 empirically found a structural blind spot in pure random-sampling property testing (Hypothesis): a "surgical" single-point hardcoded cheat, whose fallback path is otherwise fully correct, is essentially never caught by randomly generated examples, even at 5000 examples per property — regardless of how many good-faith invariants the test checks. This is true for hand-written property tests too, not specific to agent-authored ones; it did not surface in CHUNK-025/026 because that cheat (`return x + 2`) was wrong for every input. CHUNK-037's meta-verification contract must add explicit-value checks (e.g. Hypothesis `@example(...)`) covering the task's own literal example values, not rely on random sampling alone. |
+| 2026-08-13 | CHUNK-037 decided: the framework itself (not the agent) auto-extracts literal `func(args) == expected` examples already stated in a task's acceptance criteria and generates a deterministic companion pytest module, run alongside the agent-authored property test as tier 2. Demonstrated this alone catches the CHUNK-034/036 surgical cheat. Also found combined-exit-code checking is itself unsafe: CHUNK-036's health-check bug in the agent's own test fails unconditionally on every implementation including a correct one, so `phase4/meta_verify.py` (CHUNK-039) must filter individual checks against a known-good reference before deciding pass/fail, not just run the combined command and read its exit code. |
 
 ## Open questions
 
