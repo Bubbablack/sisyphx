@@ -1,0 +1,10 @@
+Created `test_listutils_property.py` with four Hypothesis property tests:
+
+1. `test_rotate_left_contract` — checks the formal contract `result[i] == lst[(i + k) % n]` for arbitrary lists and non-negative `k`.
+2. `test_rotate_left_is_pure_and_preserves_multiset` — verifies the function does not mutate its input and preserves length/elements.
+3. `test_rotate_left_zero_is_identity` — verifies rotating by 0 returns an equal list.
+4. `test_rotate_left_wraps_by_full_length` — verifies rotating by a multiple of the list length is equivalent to rotating by 0.
+
+Syntax check passed.
+
+SISYPHX_STATUS: {"outcome": "done", "summary": "Created Hypothesis property tests for rotate_left contract."}

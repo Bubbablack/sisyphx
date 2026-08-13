@@ -717,7 +717,7 @@ are recorded (038–041), retro last (042).**
 
 #### Implementation — only after the spikes above are recorded
 
-- [ ] **CHUNK-038** — `phase4/test_author.py`
+- [x] **CHUNK-038** — `phase4/test_author.py` ✅ 2026-08-13
   - Acceptance: a callable step that invokes a live Devin CLI agent with
     only a task's acceptance criteria and returns a candidate property-test
     file, per CHUNK-037's contract. Config-driven, not hardcoded to the
@@ -725,6 +725,21 @@ are recorded (038–041), retro last (042).**
   - Verify: `pytest` unit tests (stubbed subprocess) + one real run against
     the CHUNK-034 fixture
   - Deps: 037
+  - Findings: see `phase4/notes/CHUNK-038.md`, `phase4/test_author.py`,
+    `phase4/test_test_author.py`, and `phase4/run_chunk_038.py`. Promoted
+    CHUNK-035's throwaway spike into a config-driven module
+    (`author_property_test(repo, acceptance_criteria_path, test_filename,
+    timeout)`); a unit test confirms it works with a different
+    acceptance-criteria filename and output filename, not just the
+    CHUNK-034 fixture. 7 new unit tests (stubbed `subprocess.Popen`,
+    reusing `phase1/loop.py::run_devin`'s SIGTERM→SIGKILL timeout
+    convention); full suite 95 passed. Real run against the CHUNK-034
+    fixture reproduced a successful authoring turn: the agent, given only
+    the acceptance criteria, wrote a 4-property test — independently
+    structured from CHUNK-035's 9-property version, and notably avoided
+    CHUNK-036's `assume()`-health-check bug entirely by writing its empty-
+    list handling directly into the main contract property instead of a
+    separate `assume()`-filtered test.
 - [ ] **CHUNK-039** — `phase4/meta_verify.py`
   - Acceptance: per-*individual-check* filtering, not combined-exit-code
     checking (CHUNK-037's second finding): (1) always generate and append
