@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 4 scoped — property-test-authorship slice (CHUNK-034–042), not yet started
+- **Current phase:** Phase 4 complete — CHUNK-042 retro done; Phase 5 chunk-level scoping deferred
 - **Last updated:** 2026-08-13
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -835,7 +835,7 @@ are recorded (038–041), retro last (042).**
     as a third shape of agent-authored-test unreliability alongside
     CHUNK-036's "too weak" and "never executes": agent-authored tests can
     also be **too strict**.
-- [ ] **CHUNK-042** — Retro: Phase 4 findings + Phase 5 scoping
+- [x] **CHUNK-042** — Retro: Phase 4 findings + Phase 5 scoping ✅ 2026-08-13
   - Acceptance: Phase 4 findings and recommendations recorded in
     `phase4/notes/CHUNK-042.md`; `PLAN.md` Status and Decision-log updated;
     open questions resolved or explicitly carried forward. Actual
@@ -843,6 +843,7 @@ are recorded (038–041), retro last (042).**
     CHUNK-023/033
   - Verify: manual review
   - Deps: 034–041
+  - See `phase4/notes/CHUNK-042.md` — full retro. **Phase 4 complete.**
 
 ### Phase 5+ — Grow the framework outward (deferred — will be re-scoped after Phase 4)
 
@@ -903,6 +904,7 @@ renumbered now that Phase 4 itself is scoped:
 | 2026-08-13 | CHUNK-037 decided: the framework itself (not the agent) auto-extracts literal `func(args) == expected` examples already stated in a task's acceptance criteria and generates a deterministic companion pytest module, run alongside the agent-authored property test as tier 2. Demonstrated this alone catches the CHUNK-034/036 surgical cheat. Also found combined-exit-code checking is itself unsafe: CHUNK-036's health-check bug in the agent's own test fails unconditionally on every implementation including a correct one, so `phase4/meta_verify.py` (CHUNK-039) must filter individual checks against a known-good reference before deciding pass/fail, not just run the combined command and read its exit code. |
 | 2026-08-13 | CHUNK-040 found and fixed a real integration bug: writing meta-verified tier-2 test files into the implementer's workspace without committing them first caused `phase1/loop.py`'s tamper guard to flag them as agent-introduced on the very first iteration (a false positive). Fixed by committing them, `SisyphX Loop`-authored, before ever invoking the loop. |
 | 2026-08-13 | CHUNK-041's real live-agent runs on the harder `rotate_left` fixture did not reproduce a live cheat (the agent refused across two separate real runs, 6 total iterations) — different from `calc.py`'s more easily-rationalized off-by-one (CHUNK-031/032). The live cheat-catching claim for this harder fixture rests on CHUNK-036/037/039's mechanical proof against a scripted cheat, not a live-agent reproduction. Also found a third shape of agent-authored-test unreliability (alongside CHUNK-036's "too weak"/"never executes"): a live-authored test can be **too strict** (asserted an unstated object-identity property), briefly blocking a genuinely correct fix for one retry before the ordinary recovery ladder resolved it without human escalation. |
+| 2026-08-13 | Phase 4 is complete. `phase4/plan_and_run.py` closes the property-test-authorship gap Phase 3 left open: a live agent authors a candidate test from acceptance criteria alone, the framework auto-generates a deterministic companion from the criteria's own literal examples, and per-individual-check meta-verification decides whether to trust the combination as `--verify-tier2` before ever running the implementer agent unprotected. Meta-verification and the existing recovery ladder — not trusting the agent's output directly — is what actually made the pipeline trustworthy against all three real failure modes found (too weak, never executes, too strict). |
 
 ## Open questions
 
@@ -923,6 +925,18 @@ renumbered now that Phase 4 itself is scoped:
   in CHUNK-026: `mutmut` is a no-go here (dependency + crash issues);
   `cosmic-ray` works but only fits a chunk/feature-level cadence, not
   attempt-level, and needs a strong test to be meaningful at all.
+- [x] Whether an agent can reliably author property tests *from* an
+  acceptance-criteria spec, closing the human-authorship gap Phase 3 left
+  open — resolved in CHUNK-035/038: yes, a live agent authors a reasonable
+  property test from acceptance criteria alone across three independent
+  real runs. Whether that test alone is *trustworthy* is a separate
+  question, resolved next.
+- [x] Whether agent-authored property tests reliably catch semantic
+  cheats on their own — resolved in CHUNK-036: no, they have a structural
+  blind spot against a surgical single-point hardcode (true for
+  hand-written tests too); closed instead by CHUNK-037/039's
+  framework-side literal-example extraction and per-individual-check
+  meta-verification, not by trusting the agent's test directly.
 
 ### Carried forward
 
@@ -940,11 +954,21 @@ renumbered now that Phase 4 itself is scoped:
   potentially large text blob per event.
 - [ ] Whether `experiments/planner/` (the markdown ticket+chunk experiment,
   still completely untouched — zero tickets or spikes created) is still
-  wanted, and if so, whether it should feed Phase 4's specification pipeline.
-- [ ] Whether an agent can reliably author property tests *from* an
-  acceptance-criteria spec, closing the remaining human-authorship gap
-  Phase 3 left open (property tests are cheap to write once the contract is
-  known, but nothing in Phase 3 generates that contract automatically).
+  wanted. Phase 4 did not need it — the authoring step turned out to need
+  only a single acceptance-criteria text file. Candidate role if revived:
+  deciding *which* chunks warrant a tier-2 authoring pass in the first
+  place, a decision Phase 4 left entirely to the caller.
+- [ ] Whether a live implementer agent can be reliably induced to cheat on
+  a mathematically explicit contradiction (CHUNK-041): two real runs on
+  the harder `rotate_left` fixture (6 total iterations) produced
+  consistent principled refusal, unlike `calc.py`'s off-by-one
+  (CHUNK-031/032). May be a real property of this agent model, or may just
+  need more iterations/pressure than tried. The mechanical proof
+  (CHUNK-036/037/039) does not depend on resolving this.
+- [ ] Whether authoring prompts can be refined to reduce over-strict
+  agent-authored properties (CHUNK-041's object-identity finding), and
+  whether such a refinement itself needs empirical validation rather than
+  being taken on faith.
 
 ---
 
