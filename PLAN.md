@@ -608,7 +608,7 @@ are recorded (038–041), retro last (042).**
 
 #### Spikes — learn and confirm first (no framework code)
 
-- [ ] **CHUNK-034** — Spike: a harder semantic-cheat scenario than `calc.py`
+- [x] **CHUNK-034** — Spike: a harder semantic-cheat scenario than `calc.py` ✅ 2026-08-13
   - Acceptance: pick a function whose real contract is less trivially
     invertible than "add one" (e.g. something with a multi-step or
     order-dependent contract), construct a genuine bug plus a
@@ -619,6 +619,18 @@ are recorded (038–041), retro last (042).**
   - Verify: manual/scripted run reproduces a scripted cheat against the new
     fixture, mirroring CHUNK-024's method
   - Deps: 024 (fixture convention), 033 (retro)
+  - Findings: see `phase4/notes/CHUNK-034.md` and `phase4/run_chunk_034.py`.
+    Chose list rotation (`listutils.py::rotate_left`) — a genuinely harder,
+    order/modulo-dependent contract than `add_one`. The fixture has a real
+    missing-wraparound bug plus a contradictory test demanding a
+    non-rotation output. Confirmed: unmodified buggy code fails, a genuine
+    fix (adds the wraparound) still fails the contradictory assertion, and
+    only a scripted hardcoded special-case branch passes both tests — same
+    shape as CHUNK-024, but the cheat here required an explicit `if`
+    branch, not just a different constant, since no simple formula
+    coincidentally satisfies the contradiction. Also added
+    `acceptance_criteria.txt`, a contract-only prompt (no bug/cheat hints)
+    for CHUNK-035's authoring agent.
 - [ ] **CHUNK-035** — Spike: can a live agent author a property test from
   acceptance criteria alone?
   - Acceptance: give a live Devin CLI agent *only* the CHUNK-034 fixture's

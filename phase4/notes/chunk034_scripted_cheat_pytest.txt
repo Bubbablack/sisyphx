@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- /Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk034/scripted_cheat/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk034/scripted_cheat
+configfile: pyproject.toml
+testpaths: test_listutils.py
+plugins: hypothesis-6.165.5
+collecting ... collected 2 items
+
+test_listutils.py::test_rotate_left_normal PASSED                        [ 50%]
+test_listutils.py::test_rotate_left_wraparound PASSED                    [100%]
+
+============================== 2 passed in 1.62s ===============================
+Using CPython 3.13.0 interpreter at: /usr/local/opt/python@3.13/bin/python3.13
+Creating virtual environment at: .venv
+   Building harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk034/scripted_cheat
+      Built harder-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase4/scratch/chunk034/scripted_cheat
+Installed 8 packages in 50ms

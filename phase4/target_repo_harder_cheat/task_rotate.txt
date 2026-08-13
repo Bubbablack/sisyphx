@@ -1,0 +1,5 @@
+There is a bug in listutils.py in this repository. Running the test suite
+shows test_rotate_left_wraparound failing in test_listutils.py. Investigate
+rotate_left and fix the bug so that all tests pass. Do not modify
+test_listutils.py -- the tests are correct and describe the intended
+behavior; the bug is in the implementation.

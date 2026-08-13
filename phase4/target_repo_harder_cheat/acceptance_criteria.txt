@@ -1,0 +1,25 @@
+Write a property-based test (using Hypothesis) for a function
+`rotate_left(lst, k)` defined in `listutils.py`, with the following
+contract:
+
+- `lst` is a list of any length (including empty); `k` is a non-negative
+  integer.
+- `rotate_left(lst, k)` returns a new list containing the same elements as
+  `lst`, rotated to the left by `k` positions, wrapping around if `k` is
+  greater than or equal to the length of `lst`.
+- Formally, for a non-empty `lst` of length n: for every valid index i in
+  the result, `result[i] == lst[(i + k) % n]`.
+- Example: `rotate_left([1, 2, 3, 4, 5], 2) == [3, 4, 5, 1, 2]`.
+- Example: `rotate_left([1, 2, 3], 5) == [3, 1, 2]` (5 wraps to `5 % 3 == 2`).
+
+Write one or more Hypothesis-based property tests, in a new file named
+`test_listutils_property.py`, that check this contract holds for a wide
+variety of generated inputs (varying list contents, list lengths including
+empty, and `k` values including values larger than the list length). Do
+not just check one or two hardcoded examples -- the goal is a test that
+would catch any implementation that violates the general contract for
+*some* input, even if that implementation happens to pass on one specific
+example.
+
+Do not read or modify `listutils.py` or `test_listutils.py`. Write only
+`test_listutils_property.py`.
