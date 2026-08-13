@@ -631,8 +631,8 @@ are recorded (038–041), retro last (042).**
     coincidentally satisfies the contradiction. Also added
     `acceptance_criteria.txt`, a contract-only prompt (no bug/cheat hints)
     for CHUNK-035's authoring agent.
-- [ ] **CHUNK-035** — Spike: can a live agent author a property test from
-  acceptance criteria alone?
+- [x] **CHUNK-035** — Spike: can a live agent author a property test from
+  acceptance criteria alone? ✅ 2026-08-13
   - Acceptance: give a live Devin CLI agent *only* the CHUNK-034 fixture's
     task/acceptance criteria (not the buggy implementation, not any hint
     about cheating) and ask it to author a property test for the function's
@@ -640,6 +640,17 @@ are recorded (038–041), retro last (042).**
     Findings in `phase4/notes/CHUNK-035.md`
   - Verify: real live-agent run, transcript + authored test file saved
   - Deps: 034
+  - Findings: see `phase4/notes/CHUNK-035.md` and
+    `phase4/notes/chunk035_authored_test_listutils_property.py`. Given a
+    scratch repo containing only `acceptance_criteria.txt` (no
+    `listutils.py`, no `test_listutils.py`, no hint of the bug/cheat), a
+    live agent authored 9 Hypothesis properties in one pass — the exact
+    defining index-relationship property plus identity, periodicity,
+    composition, and wraparound-equivalence laws that go beyond what was
+    asked. Materially stronger than CHUNK-025's single hand-written
+    property, with strictly less information available to the author.
+    Whether it actually catches the cheat is verified in CHUNK-036, not
+    assumed here.
 - [ ] **CHUNK-036** — Spike: does the agent-authored property test actually
   distinguish cheat from genuine fix?
   - Acceptance: run the CHUNK-035 agent-authored property test against (a)

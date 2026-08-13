@@ -21,5 +21,8 @@ would catch any implementation that violates the general contract for
 *some* input, even if that implementation happens to pass on one specific
 example.
 
-Do not read or modify `listutils.py` or `test_listutils.py`. Write only
-`test_listutils_property.py`.
+You do not have access to any existing implementation of `listutils.py` or
+any other tests -- there are none in this repository. Write the property
+test purely from the contract described above, in a new file named
+`test_listutils_property.py`. Do not write or guess at an implementation
+of `rotate_left` yourself.

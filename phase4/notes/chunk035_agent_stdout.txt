@@ -1,0 +1,17 @@
+The file has valid Python syntax. Hypothesis isn't installed in the current environment, but the test file is syntactically correct and properly structured.
+
+The test file `test_listutils_property.py` includes these property-based tests:
+
+1. **Index relationship** - The core contract: `result[i] == lst[(i + k) % n]`
+2. **Preserves length** - Output list has same length as input
+3. **Preserves elements** - Same multiset of elements (sorted comparison)
+4. **Zero rotation is identity** - `rotate_left(lst, 0) == lst`
+5. **Wraps by length** - `rotate_left(lst, k) == rotate_left(lst, k % n)`
+6. **Full rotation is identity** - `rotate_left(lst, len(lst)) == lst`
+7. **Composition** - Rotating by k1 then k2 equals rotating by k1+k2
+8. **Empty list** - Empty input always gives empty output
+9. **Returns a list** - Result type check
+
+These cover the full contract with diverse generated inputs (varying lengths including empty, varying k values including those larger than list length).
+
+SISYPHX_STATUS: {"outcome": "done", "summary": "Created test_listutils_property.py with 9 Hypothesis property-based tests covering the rotate_left contract including index relationship, element preservation, wrapping, composition, and edge cases."}
