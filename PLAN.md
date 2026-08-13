@@ -499,7 +499,7 @@ each spike's findings are recorded (028–032), retro last (033).**
     `cwd` invocation convention; full suite is 73 passed. Real run against
     the same normal/cheat scenarios as CHUNK-027 confirmed the promoted
     module behaves identically (`verify-pass` / `verify-tier2-fail`).
-- [ ] **CHUNK-029** — New failure kinds for verification-tier results
+- [x] **CHUNK-029** — New failure kinds for verification-tier results ✅ 2026-08-13
   - Acceptance: `FailureSignature`/failure classification (CHUNK-017/018)
     gains distinct kinds for the new tier (e.g. `property-fail`,
     `mutation-survived`); recovery ladder (CHUNK-021) treats them as their
@@ -507,6 +507,20 @@ each spike's findings are recorded (028–032), retro last (033).**
   - Verify: `pytest` extending `phase2/test_failure_signature.py` and
     `phase2/test_recovery_ladder.py` with the new kinds
   - Deps: 028
+  - Findings: see `phase3/notes/CHUNK-029.md`. Added `verify-tier2-fail` to
+    `classify_failure`/`failure_signature` (optional `verify_tier2_*`
+    params, defaulting to `None`/reproducing Phase 1/2 exactly) and to
+    `recovery_ladder.decide_action` (uses tier2's output as retry evidence,
+    deliberately **not** in `STOP_KINDS` — goes through the normal
+    retry/escalate/stop ladder like `verify-fail`, not treated like a guard
+    abort). Building the "same failure twice" test with two genuinely
+    independent real captures surfaced and fixed a real normalization gap:
+    Hypothesis's non-deterministic inline comment
+    (`# or any other generated value`) was defeating stable hashing for
+    tier-2 property-test failures. 9 new tests using real CHUNK-025
+    artifacts; full suite 82 passed. Manual integration check confirmed
+    `verification_tiers` output plugs directly into `failure_signature`
+    with no glue code.
 - [ ] **CHUNK-030** — `EventStore` schema gains verification-tier fields
   - Acceptance: append-only schema addition (no update/delete, per
     CHUNK-022) storing the new tier's pass/fail result and summary evidence

@@ -73,7 +73,13 @@ def decide_action(
             False,
         )
 
-    evidence = last.get("verify_output", "")
+    # CHUNK-029: a verify-tier2-fail means tier 1 (the project's own tests)
+    # already passed -- tier 1's output isn't the useful evidence, tier 2's
+    # is. `verify_tier2_output` is absent for every Phase 1/2 log entry and
+    # for verify-fail entries, so this falls back to the original field.
+    evidence = last.get("verify_tier2_output") if kind == "verify-tier2-fail" else None
+    if evidence is None:
+        evidence = last.get("verify_output", "")
     return RecoveryAction("retry", evidence.strip(), False)
 
 

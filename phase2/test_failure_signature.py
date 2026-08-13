@@ -20,6 +20,7 @@ from phase2.failure_signature import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "phase2" / "notes"
+PHASE3_NOTES = REPO_ROOT / "phase3" / "notes"
 
 
 SCENARIOS: dict[str, dict] = {
@@ -113,12 +114,61 @@ SCENARIOS: dict[str, dict] = {
         "verify_exit_code": 1,
         "kind": "verify-fail",
     },
+    # CHUNK-029: real captured tier1+tier2 outputs from CHUNK-025's cheat vs.
+    # genuine-fix runs (phase3/notes/chunk025_*). Tier 1 (test_calc.py)
+    # passes in both cheat scenarios below -- only tier 2 (the property
+    # test) tells them apart.
+    "tier2_cheat_a": {
+        "notes_dir": PHASE3_NOTES,
+        "file": "chunk025_cheat_default_pytest.txt",       # tier 1 (passes)
+        "tier2_file": "chunk025_cheat_property_pytest.txt",  # tier 2 (fails)
+        "repo": REPO_ROOT / "phase3" / "scratch" / "chunk025" / "cheat",
+        "agent_exit_code": 0,
+        "agent_timed_out": False,
+        "agent_stderr": "",
+        "verify_exit_code": 0,
+        "verify_tier2_exit_code": 1,
+        "kind": "verify-tier2-fail",
+    },
+    "tier2_cheat_b": {
+        # A genuinely independent second real run of the same cheat/property
+        # test pairing (phase3/notes/chunk029_cheat_property_pytest_b.txt),
+        # captured for this chunk. Its tier2 output is NOT byte-identical to
+        # tier2_cheat_a's -- Hypothesis's duration and its inline "# or any
+        # other generated value" annotation both vary between runs, which is
+        # exactly the real normalization gap this chunk found and fixed
+        # (see rule 8b in normalize_verify_output).
+        "notes_dir": PHASE3_NOTES,
+        "file": "chunk025_cheat_default_pytest.txt",
+        "tier2_file": "chunk029_cheat_property_pytest_b.txt",
+        "repo": REPO_ROOT / "phase3" / "scratch" / "chunk025" / "cheat",
+        "agent_exit_code": 0,
+        "agent_timed_out": False,
+        "agent_stderr": "",
+        "verify_exit_code": 0,
+        "verify_tier2_exit_code": 1,
+        "kind": "verify-tier2-fail",
+    },
+    "tier2_genuine_fix": {
+        "notes_dir": PHASE3_NOTES,
+        "file": "chunk025_genuine_fix_default_pytest.txt",
+        "tier2_file": "chunk025_genuine_fix_property_pytest.txt",
+        "repo": REPO_ROOT / "phase3" / "scratch" / "chunk025" / "genuine_fix",
+        "agent_exit_code": 0,
+        "agent_timed_out": False,
+        "agent_stderr": "",
+        "verify_exit_code": 0,
+        "verify_tier2_exit_code": 0,
+        "kind": "verify-pass",
+    },
 }
 
 
 def build_signature(name: str) -> FailureSignature:
     s = SCENARIOS[name]
-    text = (NOTES / s["file"]).read_text()
+    notes_dir = s.get("notes_dir", NOTES)
+    text = (notes_dir / s["file"]).read_text()
+    tier2_text = (notes_dir / s["tier2_file"]).read_text() if "tier2_file" in s else ""
     return failure_signature(
         verify_output=text,
         agent_exit_code=s["agent_exit_code"],
@@ -126,6 +176,8 @@ def build_signature(name: str) -> FailureSignature:
         agent_stderr=s["agent_stderr"],
         verify_exit_code=s["verify_exit_code"],
         repo_path=s["repo"],
+        verify_tier2_output=tier2_text,
+        verify_tier2_exit_code=s.get("verify_tier2_exit_code"),
     )
 
 
@@ -138,6 +190,7 @@ def test_classify_matches_expected_kind(name: str) -> None:
             s["agent_timed_out"],
             s["agent_stderr"],
             s["verify_exit_code"],
+            s.get("verify_tier2_exit_code"),
         )
         == s["kind"]
     )
@@ -150,6 +203,7 @@ def test_same_failure_same_signature() -> None:
         ("import_a", "import_b"),
         ("timeout_a", "timeout_b"),
         ("guard_a", "guard_b"),
+        ("tier2_cheat_a", "tier2_cheat_b"),  # CHUNK-029
     ]
     for a, b in pairs:
         sa = build_signature(a)
@@ -160,11 +214,54 @@ def test_same_failure_same_signature() -> None:
 
 def test_different_failures_different_signatures() -> None:
     """Different failure classes produce distinct signatures."""
-    reps = ["pytest_a", "import_a", "timeout_a", "guard_a", "sisyphx_selftest", "chunk014_normal_a"]
+    reps = [
+        "pytest_a", "import_a", "timeout_a", "guard_a", "sisyphx_selftest",
+        "chunk014_normal_a", "tier2_cheat_a", "tier2_genuine_fix",
+    ]
     hashes = {name: build_signature(name).hash for name in reps}
     for i, a in enumerate(reps):
         for b in reps[i + 1 :]:
             assert hashes[a] != hashes[b], f"{a} and {b} should differ"
+
+
+def test_tier2_fail_is_a_distinct_kind_from_ordinary_verify_fail() -> None:
+    """CHUNK-029: tier 1 passing but tier 2 failing must not be folded into
+    ordinary verify-fail, and must not be confused with verify-pass either --
+    it is its own class."""
+    tier2_fail = build_signature("tier2_cheat_a")
+    ordinary_fail = build_signature("pytest_a")
+    tier2_pass = build_signature("tier2_genuine_fix")
+    assert tier2_fail.kind == "verify-tier2-fail"
+    assert tier2_fail.kind != ordinary_fail.kind
+    assert tier2_fail.kind != tier2_pass.kind
+    assert tier2_pass.kind == "verify-pass"
+
+
+def test_tier2_not_configured_reproduces_phase1_2_behavior() -> None:
+    """A chunk that never configures tier 2 (verify_tier2_exit_code=None,
+    the default) must classify and hash identically to before CHUNK-029."""
+    s = SCENARIOS["pytest_a"]
+    text = (NOTES / s["file"]).read_text()
+    with_default = failure_signature(
+        verify_output=text,
+        agent_exit_code=s["agent_exit_code"],
+        agent_timed_out=s["agent_timed_out"],
+        agent_stderr=s["agent_stderr"],
+        verify_exit_code=s["verify_exit_code"],
+        repo_path=s["repo"],
+    )
+    explicit_none = failure_signature(
+        verify_output=text,
+        agent_exit_code=s["agent_exit_code"],
+        agent_timed_out=s["agent_timed_out"],
+        agent_stderr=s["agent_stderr"],
+        verify_exit_code=s["verify_exit_code"],
+        repo_path=s["repo"],
+        verify_tier2_output="",
+        verify_tier2_exit_code=None,
+    )
+    assert with_default == explicit_none
+    assert with_default.kind == "verify-fail"
 
 
 def test_normalize_is_stable_across_repeated_runs() -> None:
