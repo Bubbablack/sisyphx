@@ -14,7 +14,12 @@ verification command decides pass/fail, and now `FailureSignature` decides
 Usage:
     python3 loop.py --repo <path> --task <task_prompt_file> \\
         --verify "<shell command>" [--max-iterations 6] \\
-        [--repeat-threshold 3] [--agent-timeout 240] [--verify-timeout 120]
+        [--repeat-threshold 3] [--agent-timeout 240] [--verify-timeout 120] \\
+        [--verify-tier2 "<shell command>"] [--verify-tier2-timeout 30]
+
+`--verify-tier2` (CHUNK-027/031) is optional and opt-in per chunk: a second
+verification command (e.g. a property-test runner) that only runs if
+`--verify` passes. Omitting it reproduces Phase 1/2 behavior exactly.
 
 Stop conditions (first one hit wins):
     - verification passes                              -> exit 0
@@ -52,6 +57,7 @@ from phase2.failure_signature import (
 )
 from phase2.recovery_ladder import decide_action, write_escalation_brief
 from phase2.tamper_guard import scan_tamper
+from phase3.verification_tiers import DEFAULT_TIER2_TIMEOUT_SECONDS
 
 
 # Run log schema (CHUNK-011). Each line of `.agent-state/runs/log.jsonl` is one
@@ -66,8 +72,11 @@ class RunLogEntry(TypedDict, total=False):
     status: dict | None         # parsed SISYPHX_STATUS, if any
     verify_exit_code: int
     verify_output: str          # raw verify output for the recovery ladder
+    verify_tier2_exit_code: int | None  # CHUNK-031: None if no tier 2 was configured
+    verify_tier2_output: str            # CHUNK-031: "" if no tier 2 was configured
     passed: bool
     failure_kind: str           # CHUNK-018: guard / agent-timeout / verify-timeout / verify-fail / verify-pass / agent-error
+                                 # CHUNK-031 adds: verify-tier2-fail
     failure_signature: str      # CHUNK-018: 16-char hash of the failure identity
     head_before: str            # CHUNK-019: HEAD before the agent ran
     head_after: str             # CHUNK-019: HEAD after the agent ran
@@ -87,6 +96,8 @@ LOG_FIELDS: tuple[str, ...] = (
     "status",
     "verify_exit_code",
     "verify_output",
+    "verify_tier2_exit_code",
+    "verify_tier2_output",
     "passed",
     "failure_kind",
     "failure_signature",
@@ -293,11 +304,21 @@ def run_loop(
     agent_timeout: int = 240,
     verify_timeout: int = 120,
     permitted_paths: tuple[str, ...] = (),
+    verify_tier2_cmd: str | None = None,
+    verify_tier2_timeout: int = DEFAULT_TIER2_TIMEOUT_SECONDS,
     log=print,
 ) -> int:
     """Returns a process-style exit code: 0 = passed, 2 = max_iterations
     exhausted, 3 = repeated identical failure signature detected,
-    4 = guard / unauthorized commit / tamper (do not retry)."""
+    4 = guard / unauthorized commit / tamper (do not retry).
+
+    `verify_tier2_cmd` (CHUNK-031, contract in `phase3/notes/CHUNK-027.md`)
+    is optional and opt-in per chunk: `None` (the default) reproduces
+    Phase 1/2 behavior exactly. When set, it only runs after `verify_cmd`
+    (tier 1) passes, using the same execution primitive (`run_verification`)
+    tier 1 already uses. A tier-1 pass with a tier-2 failure produces the
+    distinct `verify-tier2-fail` failure kind instead of a misleading pass.
+    """
     state_dir = repo / ".agent-state" / "runs"
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "log.jsonl"
@@ -479,6 +500,18 @@ def run_loop(
             verify_exit, verify_output = run_verification(repo, verify_cmd, verify_timeout)
             (run_dir / "verify_output.txt").write_text(verify_output)
 
+            # CHUNK-031: tier 2 (opt-in, per CHUNK-027's contract) only runs
+            # if tier 1 passed -- no point spending budget on a stronger
+            # check when the basic gate already failed. Uses the exact same
+            # execution primitive (`run_verification`) as tier 1.
+            verify_tier2_exit: int | None = None
+            verify_tier2_output = ""
+            if verify_exit == 0 and verify_tier2_cmd:
+                verify_tier2_exit, verify_tier2_output = run_verification(
+                    repo, verify_tier2_cmd, verify_tier2_timeout
+                )
+                (run_dir / "verify_tier2_output.txt").write_text(verify_tier2_output)
+
             signature = failure_signature(
                 verify_output,
                 agent_exit,
@@ -487,20 +520,22 @@ def run_loop(
                 verify_exit,
                 repo_path=repo,
                 repo_root=REPO_ROOT,
+                verify_tier2_output=verify_tier2_output,
+                verify_tier2_exit_code=verify_tier2_exit,
             )
             passed = signature.kind == "verify-pass"
 
-            event_store.append(
-                "verify_result",
-                payload={
-                    "verify_exit_code": verify_exit,
-                    "verify_output": verify_output,
-                    "passed": passed,
-                    "failure_kind": signature.kind,
-                    "failure_signature": signature.hash,
-                },
+            event_store.append_verify_result(
                 run_id=run_id,
                 iteration=iteration,
+                verify_exit_code=verify_exit,
+                verify_output=verify_output,
+                passed=passed,
+                failure_kind=signature.kind,
+                failure_signature=signature.hash,
+                verify_tier2_ran=verify_tier2_cmd is not None,
+                verify_tier2_exit_code=verify_tier2_exit,
+                verify_tier2_output=verify_tier2_output,
                 timestamp=timestamp,
             )
 
@@ -515,6 +550,8 @@ def run_loop(
                 "status": status,
                 "verify_exit_code": verify_exit,
                 "verify_output": verify_output,
+                "verify_tier2_exit_code": verify_tier2_exit,
+                "verify_tier2_output": verify_tier2_output,
                 "passed": passed,
                 "failure_kind": signature.kind,
                 "failure_signature": signature.hash,
@@ -627,6 +664,16 @@ def main() -> int:
         default=[],
         help="glob of a path the agent is explicitly allowed to edit (repeatable)",
     )
+    ap.add_argument(
+        "--verify-tier2",
+        default=None,
+        help=(
+            "optional shell command for a second verification tier "
+            "(CHUNK-027/031), e.g. a property-test runner. Only runs if "
+            "--verify passes; omit for Phase 1/2 behavior unchanged."
+        ),
+    )
+    ap.add_argument("--verify-tier2-timeout", type=int, default=DEFAULT_TIER2_TIMEOUT_SECONDS)
     args = ap.parse_args()
 
     return run_loop(
@@ -638,6 +685,8 @@ def main() -> int:
         agent_timeout=args.agent_timeout,
         verify_timeout=args.verify_timeout,
         permitted_paths=tuple(args.permit),
+        verify_tier2_cmd=args.verify_tier2,
+        verify_tier2_timeout=args.verify_tier2_timeout,
     )
 
 

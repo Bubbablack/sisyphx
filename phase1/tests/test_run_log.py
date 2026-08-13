@@ -154,6 +154,124 @@ def test_run_loop_logs_repeat_threshold_stop(real_repo, monkeypatch):
     assert [e["verify_exit_code"] for e in log] == [1, 1, 1]
 
 
+# -- CHUNK-031: opt-in second verification tier -----------------------------
+
+
+def test_run_loop_without_tier2_arg_leaves_tier2_fields_empty(real_repo, monkeypatch):
+    """CHUNK-031 backward compatibility: a chunk that never passes
+    verify_tier2_cmd gets verify_tier2_exit_code=None and
+    verify_tier2_output="" in the log, and run_verification is called only
+    once per iteration (tier 1 only)."""
+    calls = []
+
+    def fake_verify(repo, cmd, timeout):
+        calls.append(cmd)
+        return 0, "ok"
+
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(loop, "run_verification", fake_verify)
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="true",
+        max_iterations=3,
+        log=lambda *a: None,
+    )
+    assert exit_code == 0
+    assert calls == ["true"]  # tier 2 never invoked
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert log[0]["verify_tier2_exit_code"] is None
+    assert log[0]["verify_tier2_output"] == ""
+
+
+def test_run_loop_tier1_fail_skips_tier2(real_repo, monkeypatch):
+    """If tier 1 fails, tier 2 must never run (no budget spent on a
+    stronger check when the basic gate already failed)."""
+    calls = []
+
+    def fake_verify(repo, cmd, timeout):
+        calls.append(cmd)
+        return (1, "tier1 failure") if cmd == "false" else (0, "tier2 should not run")
+
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "blocked"}', ""),
+    )
+    monkeypatch.setattr(loop, "run_verification", fake_verify)
+    run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="false",
+        verify_tier2_cmd="pytest test_property.py",
+        max_iterations=1,
+        log=lambda *a: None,
+    )
+    assert calls == ["false"]  # tier 2 skipped entirely
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert log[0]["failure_kind"] == "verify-fail"
+    assert log[0]["verify_tier2_exit_code"] is None
+
+
+def test_run_loop_tier1_pass_tier2_pass(real_repo, monkeypatch):
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (0, "tier1 ok") if cmd == "true" else (0, "tier2 ok"),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="true",
+        verify_tier2_cmd="pytest test_property.py",
+        max_iterations=1,
+        log=lambda *a: None,
+    )
+    assert exit_code == 0
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert log[0]["passed"] is True
+    assert log[0]["failure_kind"] == "verify-pass"
+    assert log[0]["verify_tier2_exit_code"] == 0
+    assert log[0]["verify_tier2_output"] == "tier2 ok"
+
+
+def test_run_loop_tier1_pass_tier2_fail_is_distinct_kind_and_retries(real_repo, monkeypatch):
+    """A tier-2 failure produces the distinct verify-tier2-fail kind (not a
+    misleading verify-pass, and not folded into ordinary verify-fail), and
+    the loop retries rather than stopping immediately (it is not in
+    STOP_KINDS)."""
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(
+        loop, "run_verification",
+        lambda repo, cmd, timeout: (0, "tier1 ok") if cmd == "true" else (1, "assert 2 == 1"),
+    )
+    exit_code = run_loop(
+        repo=real_repo,
+        task_text="fix it",
+        verify_cmd="true",
+        verify_tier2_cmd="pytest test_property.py",
+        max_iterations=2,
+        repeat_threshold=5,  # don't trigger stop within this test
+        log=lambda *a: None,
+    )
+    assert exit_code == 2  # max_iterations exhausted, never passed
+    log = read_log(real_repo / ".agent-state" / "runs" / "log.jsonl")
+    assert len(log) == 2
+    for entry in log:
+        assert entry["passed"] is False
+        assert entry["failure_kind"] == "verify-tier2-fail"
+        assert entry["verify_tier2_exit_code"] == 1
+        assert entry["verify_tier2_output"] == "assert 2 == 1"
+
+
 def test_run_loop_stops_on_guard_abort(real_repo, monkeypatch):
     """A guard abort (exit 1 + sentinel stderr) stops the loop immediately
     with exit 4 and records failure_kind='guard'."""
