@@ -455,7 +455,7 @@ each spike's findings are recorded (028–032), retro last (033).**
     mutation testing is recommended as a chunk/feature-level check, not an
     attempt-level tier — Phase 3 implementation (028-032) leads with the
     property-test tier from CHUNK-025 instead.
-- [ ] **CHUNK-027** — Spike: verification-tier invocation contract
+- [x] **CHUNK-027** — Spike: verification-tier invocation contract ✅ 2026-08-13
   - Acceptance: decide and document how `loop.py` invokes an additional
     check beyond the project's own `pytest` command — subprocess convention,
     where per-chunk property/mutation tests live, pass/fail contract, and
@@ -464,6 +464,19 @@ each spike's findings are recorded (028–032), retro last (033).**
   - Verify: manual review; a throwaway script demonstrates the contract
     running against the CHUNK-024 fixture
   - Deps: 025, 026
+  - Findings: see `phase3/notes/CHUNK-027.md`,
+    `phase3/verification_contract_demo.py`, and `phase3/run_chunk_027.py`.
+    Contract: at most two tiers, both plain shell commands run exactly like
+    today's `--verify` (`subprocess.run(shell=True, ...)`); tier 2 is new,
+    optional (`--verify-tier2`/`--verify-tier2-timeout`), and only runs if
+    tier 1 passes; tier 1 pass + tier 2 fail produces a new distinct
+    `verify-tier2-fail` failure kind rather than a misleading `verify-pass`;
+    tier 2 test files live alongside existing tests with no new directory
+    convention, invoked by explicit path. Demonstrated on two real
+    scenarios: a normal, correct chunk passes both tiers (5.6s); the
+    CHUNK-024 cheat passes tier 1 but is caught by tier 2 (5.9s,
+    `verify-tier2-fail`) — mechanically reproducing CHUNK-024's real-agent
+    finding without re-running the agent.
 
 #### Implementation — only after the spikes above are recorded
 
