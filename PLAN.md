@@ -428,7 +428,7 @@ each spike's findings are recorded (028–032), retro last (033).**
     `pyproject.toml` gained a `hypothesis` dev dependency and an explicit
     `testpaths = ["test_calc.py"]` so plain `uv run pytest` behavior is
     unchanged from CHUNK-024 (verified: still collects exactly 2 items).
-- [ ] **CHUNK-026** — Spike: mutation-testing tool selection
+- [x] **CHUNK-026** — Spike: mutation-testing tool selection ✅ 2026-08-13
   - Acceptance: trial `mutmut` (or `cosmic-ray` if `mutmut` doesn't fit the
     `uv`/pytest workflow) against the CHUNK-024 fixture; confirm it flags the
     cheat as a surviving mutant vs. a genuine fix killing the equivalent
@@ -437,6 +437,24 @@ each spike's findings are recorded (028–032), retro last (033).**
     the go/no-go on latency, in `phase3/notes/CHUNK-026.md`
   - Verify: manual run, transcript + timing saved
   - Deps: 024
+  - Findings: see `phase3/notes/CHUNK-026.md` and `phase3/run_chunk_026.py`.
+    `mutmut` rejected: its `libcst` dependency needed a pinned older version
+    to get a macOS x86_64 wheel at all, then `mutmut run` was still building
+    its own isolated venv after 5+ minutes with zero mutants tested on a
+    2-function module, and crashed with an internal `AssertionError` on
+    retry — no further investigation attempted (out of scope for a spike).
+    `cosmic-ray` worked and gave a real, informative result: against the
+    fixture's own weak `test_calc.py`, the cheat scored a misleadingly
+    **high** kill rate (2/26 survived, 92.3% killed) — the 2 survivors
+    (`x | 2`, `x ^ 2`) coincidentally also equal 7 for the test's one
+    hard-coded input, exposing exactly why single-example tests give false
+    confidence under mutation testing. Against the CHUNK-025 property test,
+    the genuine fix scored 0% survival (26/26 killed), including killing the
+    cheat itself as a generated mutant. `cosmic-ray exec` took ~52-64s on
+    this trivial module (over budget once paired with Hypothesis), so
+    mutation testing is recommended as a chunk/feature-level check, not an
+    attempt-level tier — Phase 3 implementation (028-032) leads with the
+    property-test tier from CHUNK-025 instead.
 - [ ] **CHUNK-027** — Spike: verification-tier invocation contract
   - Acceptance: decide and document how `loop.py` invokes an additional
     check beyond the project's own `pytest` command — subprocess convention,
