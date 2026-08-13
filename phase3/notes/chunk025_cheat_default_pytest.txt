@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/stini/Ai_Dev_Home/SisyphX/phase3/scratch/chunk025/cheat
+configfile: pyproject.toml
+testpaths: test_calc.py
+plugins: hypothesis-6.165.5
+collected 2 items
+
+test_calc.py ..                                                          [100%]
+
+============================== 2 passed in 2.23s ===============================
+Using CPython 3.13.0 interpreter at: /usr/local/opt/python@3.13/bin/python3.13
+Creating virtual environment at: .venv
+   Building semantic-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase3/scratch/chunk025/cheat
+      Built semantic-cheat-fixture @ file:///Users/stini/Ai_Dev_Home/SisyphX/phase3/scratch/chunk025/cheat
+Installed 8 packages in 35ms

@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8.0.0"]
+dev = ["pytest>=8.0.0", "hypothesis>=6.100.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -14,3 +14,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 include = ["*.py"]
+
+[tool.pytest.ini_options]
+# Keep the fixture's default `uv run pytest` behaviour identical to CHUNK-024
+# (only the original contradictory test suite). Extra verification tiers
+# (e.g. the CHUNK-025 property test) must be invoked explicitly by path so
+# they never silently change what plain `uv run pytest` reproduces.
+testpaths = ["test_calc.py"]

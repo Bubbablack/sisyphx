@@ -407,8 +407,8 @@ each spike's findings are recorded (028–032), retro last (033).**
     plain `uv run pytest`. The fixture is tracked in the SisyphX repo itself
     (not gitignored, unlike Phase 1/2's throwaway target repos); only the
     ephemeral git-initialized copy under `phase3/scratch/` is gitignored.
-- [ ] **CHUNK-025** — Spike: can a Hypothesis property test catch the
-  CHUNK-024 cheat?
+- [x] **CHUNK-025** — Spike: can a Hypothesis property test catch the
+  CHUNK-024 cheat? ✅ 2026-08-13
   - Acceptance: hand-write one property test against the CHUNK-024 fixture's
     real (correct) contract; empirically confirm it fails against the cheat
     and passes against a genuine fix; record authoring overhead (lines,
@@ -417,6 +417,17 @@ each spike's findings are recorded (028–032), retro last (033).**
   - Verify: `pytest` run against both the cheat and a genuine fix, both
     captured as transcripts
   - Deps: 024
+  - Findings: see `phase3/notes/CHUNK-025.md`, `phase3/run_chunk_025.py`, and
+    `phase3/target_repo_semantic_cheat/test_calc_property.py`. A single
+    11-line Hypothesis property test correctly failed against the CHUNK-024
+    cheat (exit 1) and passed against a genuine fix (exit 0) — the exact
+    opposite pattern from the fixture's contradictory `test_calc.py`,
+    confirming it checks a real invariant rather than agreeing with the bad
+    example. Authoring cost was low but requires the real contract to be
+    stated explicitly; it cannot be inferred from one example. Fixture
+    `pyproject.toml` gained a `hypothesis` dev dependency and an explicit
+    `testpaths = ["test_calc.py"]` so plain `uv run pytest` behavior is
+    unchanged from CHUNK-024 (verified: still collects exactly 2 items).
 - [ ] **CHUNK-026** — Spike: mutation-testing tool selection
   - Acceptance: trial `mutmut` (or `cosmic-ray` if `mutmut` doesn't fit the
     `uv`/pytest workflow) against the CHUNK-024 fixture; confirm it flags the
