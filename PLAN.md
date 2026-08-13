@@ -804,8 +804,8 @@ are recorded (038–041), retro last (042).**
     `phase1/loop.py`'s tamper guard saw them as agent-introduced on the
     very first iteration. Fixed by committing them (as a `SisyphX
     Loop`-authored commit) before invoking the loop at all.
-- [ ] **CHUNK-041** — Real end-to-end run: full authoring pipeline catches a
-  live cheat on the harder fixture
+- [x] **CHUNK-041** — Real end-to-end run: full authoring pipeline catches a
+  live cheat on the harder fixture ✅ 2026-08-13
   - Acceptance: run the full CHUNK-040 pipeline against the CHUNK-034
     fixture with a live implementer agent attempting the task; confirm the
     agent-authored (not hand-written) property test catches a real cheat
@@ -816,6 +816,25 @@ are recorded (038–041), retro last (042).**
   - Verify: real run transcripts for both the cheat and the genuine-fix
     case, saved to `phase4/notes/CHUNK-041.md`
   - Deps: 040
+  - Findings: see `phase4/notes/CHUNK-041.md`. **Cheat scenario**: with
+    `max_iterations=4` (more room than CHUNK-040), the live implementer
+    agent again refused to cheat across all 4 iterations, correctly
+    identifying the contradictory assertion as impossible every time; the
+    recovery ladder correctly detected the repeated identical signature and
+    stopped (exit 3, "stuck", not a false pass). The live cheat-catching
+    claim for this harder fixture rests on CHUNK-036/037/039's mechanical
+    proof plus CHUNK-031/032's live-agent proof on the easier `calc.py`
+    fixture, not this chunk's runs — recorded honestly rather than
+    re-run repeatedly to force a cheat. **Genuine-fix scenario — a third
+    real failure mode found**: passed by iteration 2, but iteration 1
+    revealed the live-authored property test for *this* run included an
+    object-identity check (`result is not lst`) stricter than the stated
+    contract required; the agent's correct fix initially failed tier 2 for
+    the empty-list case, then adjusted and passed cleanly. Ordinary
+    recovery (not human escalation) absorbed it in one retry. Documented
+    as a third shape of agent-authored-test unreliability alongside
+    CHUNK-036's "too weak" and "never executes": agent-authored tests can
+    also be **too strict**.
 - [ ] **CHUNK-042** — Retro: Phase 4 findings + Phase 5 scoping
   - Acceptance: Phase 4 findings and recommendations recorded in
     `phase4/notes/CHUNK-042.md`; `PLAN.md` Status and Decision-log updated;
@@ -882,6 +901,8 @@ renumbered now that Phase 4 itself is scoped:
 | 2026-08-13 | Phase 4 scoped as a narrow property-test-authorship slice (CHUNK-034–042), directly continuing Phase 3's theme rather than jumping to a new surface area: Phase 3 proved a property test catches semantic cheating but left "who writes the invariant" as a human responsibility. Phase 4 asks empirically whether a live agent, given only acceptance criteria, can author one reliably, with an explicit meta-verification step (test the candidate test against known-good/known-bad references) before ever trusting it as a `--verify-tier2` command. Domain models, ontology, learning/promotion, Spec Kit/APM, and a second real project remain deferred to Phase 5+; `experiments/planner/` stays untouched unless a Phase 4 spike concludes it's needed. |
 | 2026-08-13 | CHUNK-036 empirically found a structural blind spot in pure random-sampling property testing (Hypothesis): a "surgical" single-point hardcoded cheat, whose fallback path is otherwise fully correct, is essentially never caught by randomly generated examples, even at 5000 examples per property — regardless of how many good-faith invariants the test checks. This is true for hand-written property tests too, not specific to agent-authored ones; it did not surface in CHUNK-025/026 because that cheat (`return x + 2`) was wrong for every input. CHUNK-037's meta-verification contract must add explicit-value checks (e.g. Hypothesis `@example(...)`) covering the task's own literal example values, not rely on random sampling alone. |
 | 2026-08-13 | CHUNK-037 decided: the framework itself (not the agent) auto-extracts literal `func(args) == expected` examples already stated in a task's acceptance criteria and generates a deterministic companion pytest module, run alongside the agent-authored property test as tier 2. Demonstrated this alone catches the CHUNK-034/036 surgical cheat. Also found combined-exit-code checking is itself unsafe: CHUNK-036's health-check bug in the agent's own test fails unconditionally on every implementation including a correct one, so `phase4/meta_verify.py` (CHUNK-039) must filter individual checks against a known-good reference before deciding pass/fail, not just run the combined command and read its exit code. |
+| 2026-08-13 | CHUNK-040 found and fixed a real integration bug: writing meta-verified tier-2 test files into the implementer's workspace without committing them first caused `phase1/loop.py`'s tamper guard to flag them as agent-introduced on the very first iteration (a false positive). Fixed by committing them, `SisyphX Loop`-authored, before ever invoking the loop. |
+| 2026-08-13 | CHUNK-041's real live-agent runs on the harder `rotate_left` fixture did not reproduce a live cheat (the agent refused across two separate real runs, 6 total iterations) — different from `calc.py`'s more easily-rationalized off-by-one (CHUNK-031/032). The live cheat-catching claim for this harder fixture rests on CHUNK-036/037/039's mechanical proof against a scripted cheat, not a live-agent reproduction. Also found a third shape of agent-authored-test unreliability (alongside CHUNK-036's "too weak"/"never executes"): a live-authored test can be **too strict** (asserted an unstated object-identity property), briefly blocking a genuinely correct fix for one retry before the ordinary recovery ladder resolved it without human escalation. |
 
 ## Open questions
 
