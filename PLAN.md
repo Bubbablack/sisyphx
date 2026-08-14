@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 5 in progress — CHUNK-043–045 done; CHUNK-046 (retro) next
+- **Current phase:** Phase 5 complete — CHUNK-046 retro done; Phase 6 chunk-level scoping deferred
 - **Last updated:** 2026-08-14
 - **Phase 5 target:** `/Users/stini/Ai_Dev_Home/Projects/Illima_Energy/illima-dashboard` (Laravel 11 + Filament v3, PHP)
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
@@ -946,7 +946,8 @@ learning/promotion, no Spec Kit/APM.
     matching the chunk's acceptance criteria. Full SisyphX suite 117
     passed. Real planner ticket/chunk statuses updated to reflect the
     actual completed work.
-- [ ] **CHUNK-046** — Retro: Phase 5 findings + Phase 6 scoping
+- [x] **CHUNK-046** — Retro: Phase 5 findings + Phase 6 scoping
+  ✅ 2026-08-14
   - Acceptance: Phase 5 findings and recommendations recorded in
     `phase5/notes/CHUNK-046.md`; `PLAN.md` Status and Decision-log updated;
     open questions resolved or explicitly carried forward, including
@@ -955,6 +956,17 @@ learning/promotion, no Spec Kit/APM.
     intentionally deferred, same pattern as CHUNK-023/033/042
   - Verify: manual review
   - Deps: 043, 044, 045
+  - See `phase5/notes/CHUNK-046.md` — full retro. **Phase 5 complete.**
+    Every one of Phase 5's three chunks found and fixed a real bug, not
+    purely additive — the tamper guard's directory-globbing had two
+    independent latent bugs since Phase 2 (neither PHP-specific), and
+    `loop.py` had an unvalidated repo-toplevel precondition that every
+    prior use happened to satisfy by construction. Once fixed, the core
+    loop/guard/verify machinery needed zero further changes to complete a
+    real chunk correctly on a real Laravel/PHP client codebase. Most
+    concrete carried-forward finding: the project's own `004.013`
+    verification gap (tests passed, browser didn't) remains unaddressed —
+    a strong candidate for Phase 6.
 
 ### Phase 6+ — Grow the framework outward (deferred — will be re-scoped after Phase 5)
 
@@ -1020,6 +1032,7 @@ renumbered now that Phase 5 itself is scoped:
 | 2026-08-13 | CHUNK-043: initialized git for Illima Energy (previously had no version control anywhere). Verified `.env` (real FMA credentials) is excluded and the Postman collection/`.env.example` contain only placeholder values before the initial commit. Confirmed a clean baseline: `php artisan test` passes (12 tests, 42 assertions) via the project's existing `illima-php:8.2` Docker image. |
 | 2026-08-13 | CHUNK-044 found and fixed two real, previously-hidden bugs in `phase2/tamper_guard.py` that predate PHP and applied to Python too, surfaced only while adding PHP test coverage: (1) `dir/**/*.ext`-shaped patterns never matched files directly under `dir/` (fnmatch's literal `/` requires a real subdirectory); (2) more significantly, `git status --porcelain` without `--untracked-files=all` collapses an entirely new, untracked directory into one line, making every file an agent creates inside a brand-new subdirectory (e.g. a fresh `tests/` folder) completely invisible to the tamper guard since Phase 2/CHUNK-020. Both fixed. `PROTECTED_PATTERNS` also widened with PHP/Composer/Laravel conventions. Docker-based `php artisan test` verification confirmed to work completely unmodified as `loop.py`'s `--verify` argument. |
 | 2026-08-14 | CHUNK-045 found a real, significant bug on the first real-project run: `--repo` must be the actual git toplevel, not a subdirectory of a larger repo, or `git status`'s reported paths (relative to the outer toplevel) never match `--permit` patterns (relative to `--repo`), causing the tamper guard to fire on entirely legitimate, permitted changes. Fixed by restructuring Illima Energy so `illima-dashboard` has its own git repository, and by hardening `loop.py` itself with a startup precondition check that now fails fast with a clear error instead of silently misclassifying legitimate work as tampering. Second attempt passed on iteration 1: real `Customer` model, migration, and test, independently re-verified (12→14 tests, zero regressions). SisyphX's first real chunk of real client work, in a different language than every prior phase, using the project's existing Docker-based test infrastructure completely unmodified. |
+| 2026-08-14 | Phase 5 is complete. Every one of its three chunks found and fixed a real bug rather than being purely additive: the tamper guard had two independent latent bugs since Phase 2 (neither PHP-specific — an fnmatch directory-globbing gap and a `git status --untracked-files=all` gap), and `loop.py` had an unvalidated repo-toplevel precondition every prior use had satisfied only by construction. Once fixed, the core loop/guard/verify machinery needed zero further changes to complete real, correct client work on a real Laravel/PHP codebase — the `--verify` contract (an arbitrary shell command) was already general enough. The real project's own `004.013` ticket (tests passed, browser didn't) remains an unaddressed, concrete candidate for Phase 6. |
 
 ## Open questions
 
@@ -1052,6 +1065,17 @@ renumbered now that Phase 5 itself is scoped:
   hand-written tests too); closed instead by CHUNK-037/039's
   framework-side literal-example extraction and per-individual-check
   meta-verification, not by trusting the agent's test directly.
+- [x] Second verification adapter target language — resolved in Phase 5:
+  a real Laravel/PHP project (Illima Energy), PHPUnit via Docker. The
+  `--verify` contract needed zero changes; only the tamper guard's
+  pattern list needed widening, which also surfaced two real, unrelated
+  bugs in that same guard (CHUNK-044).
+- [x] Whether `experiments/planner/`'s ticket+chunk format is still
+  wanted — resolved: yes, confirmed by real, independent, sustained use
+  on the Illima Energy project (22 real tickets), including a `failed`
+  ticket documented with the same honesty this project's methodology
+  requires. SisyphX's own copy remains untouched — Phase 4 didn't need it
+  and Phase 5 used a different real project's copy directly.
 
 ### Carried forward
 
@@ -1061,18 +1085,23 @@ renumbered now that Phase 5 itself is scoped:
 - [ ] Whether Devin CLI's native `/loop` slash command is scriptable
   non-interactively (worth a quick empirical check, though SisyphX's own outer
   loop is still needed for independent verification).
-- [ ] Second verification adapter target language — deferred until a real second
-  project is in scope.
 - [ ] Event-store retention — how long should raw events live, what should be
   summarized/archived, and when should the SQLite DB be rotated? Now more
   relevant since `verify_tier2_output` (CHUNK-030/031) adds another
   potentially large text blob per event.
-- [ ] Whether `experiments/planner/` (the markdown ticket+chunk experiment,
-  still completely untouched — zero tickets or spikes created) is still
-  wanted. Phase 4 did not need it — the authoring step turned out to need
-  only a single acceptance-criteria text file. Candidate role if revived:
-  deciding *which* chunks warrant a tier-2 authoring pass in the first
-  place, a decision Phase 4 left entirely to the caller.
+- [ ] **Whether SisyphX's verification model can catch a UI/browser-level
+  gap** like Illima Energy's real `004.013` ticket (automated tests
+  passed, a manual browser check found the feature didn't work) — Phase 5
+  validated the pipeline only on a safe, additive, backend-only chunk. A
+  single shell command's exit code (the current `--verify`/`--verify-tier2`
+  model) would not have caught 004.013's failure even for a correct
+  implementation. Concrete candidate for Phase 6: does verification need a
+  browser/visual-regression tier, and is that in SisyphX's scope or the
+  target project's own?
+- [ ] Whether/how to continue driving Illima Energy's remaining planned
+  tickets through SisyphX, and at what autonomy level, given this is real
+  client work with real stakes unlike every prior phase's fixtures — a
+  human decision, not resolved in Phase 5's retro.
 - [ ] Whether a live implementer agent can be reliably induced to cheat on
   a mathematically explicit contradiction (CHUNK-041): two real runs on
   the harder `rotate_left` fixture (6 total iterations) produced
