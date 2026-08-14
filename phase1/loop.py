@@ -318,7 +318,33 @@ def run_loop(
     (tier 1) passes, using the same execution primitive (`run_verification`)
     tier 1 already uses. A tier-1 pass with a tier-2 failure produces the
     distinct `verify-tier2-fail` failure kind instead of a misleading pass.
+
+    CHUNK-045 (Phase 5) found a real, confusing failure mode: every git
+    command here runs with `cwd=repo`, and the tamper guard's protected-path
+    matching assumes the paths `git status` reports are relative to `repo`
+    itself. If `repo` is a *subdirectory* of a larger git repository (not
+    the actual toplevel), git reports paths relative to that outer toplevel
+    instead -- so a legitimate, permitted file (e.g. a new test) gets a
+    path like "myproject/tests/Foo.php" that never matches `permitted_paths`
+    patterns written relative to `repo`, and the tamper guard fires on
+    entirely legitimate work. Fail fast with a clear error instead.
     """
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], cwd=repo, capture_output=True, text=True,
+    )
+    if toplevel.returncode != 0:
+        log(f"=== ERROR: {repo} is not inside a git repository ({toplevel.stderr.strip()}) ===")
+        return 1
+    if Path(toplevel.stdout.strip()).resolve() != repo.resolve():
+        log(
+            f"=== ERROR: --repo ({repo.resolve()}) is not the git repository's toplevel "
+            f"({toplevel.stdout.strip()}). Guard checks assume `git status` paths are "
+            f"relative to --repo itself; a subdirectory repo will silently misclassify "
+            f"legitimate changes as tampering. Give this directory its own git repository "
+            f"(see phase5/notes/CHUNK-045.md for a real example of this exact failure). ==="
+        )
+        return 1
+
     state_dir = repo / ".agent-state" / "runs"
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "log.jsonl"

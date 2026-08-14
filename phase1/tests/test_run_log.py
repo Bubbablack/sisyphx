@@ -26,6 +26,60 @@ def real_repo(tmp_path):
     return tmp_path
 
 
+# -- CHUNK-045: --repo must be the actual git toplevel -----------------------
+
+
+def test_run_loop_rejects_repo_not_in_a_git_repository(tmp_path):
+    """A plain directory with no git repository at all must fail fast,
+    not proceed and crash deeper inside git-dependent guard logic."""
+    plain_dir = tmp_path / "not_a_repo"
+    plain_dir.mkdir()
+    exit_code = run_loop(
+        repo=plain_dir, task_text="fix it", verify_cmd="true", max_iterations=1, log=lambda *a: None,
+    )
+    assert exit_code == 1
+
+
+def test_run_loop_rejects_repo_that_is_a_git_subdirectory(tmp_path):
+    """CHUNK-045's real finding: if --repo is a subdirectory of a larger
+    git repository (not the toplevel), git reports paths relative to the
+    outer toplevel, which silently breaks permitted_paths/tamper-guard
+    matching. This must be rejected up front with a clear error, not
+    proceed and misclassify legitimate changes as tampering."""
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=outer, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=outer, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=outer, check=True)
+    (outer / "README").write_text("init")
+    subprocess.run(["git", "add", "-A"], cwd=outer, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=outer, check=True)
+
+    inner = outer / "inner-project"
+    inner.mkdir()
+    (inner / "README").write_text("inner")
+
+    exit_code = run_loop(
+        repo=inner, task_text="fix it", verify_cmd="true", max_iterations=1, log=lambda *a: None,
+    )
+    assert exit_code == 1
+
+
+def test_run_loop_accepts_repo_that_is_the_git_toplevel(real_repo, monkeypatch):
+    """A proper repo (--repo IS the git toplevel) must proceed normally --
+    this is implicitly covered by every other test in this file using the
+    `real_repo` fixture, asserted explicitly here for clarity."""
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(loop, "run_verification", lambda repo, cmd, timeout: (0, "ok"))
+    exit_code = run_loop(
+        repo=real_repo, task_text="fix it", verify_cmd="true", max_iterations=1, log=lambda *a: None,
+    )
+    assert exit_code == 0
+
+
 # -- read_log schema tests ---------------------------------------------------
 
 

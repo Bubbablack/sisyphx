@@ -11,8 +11,8 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 5 in progress — CHUNK-043 (git init) done; CHUNK-044 next
-- **Last updated:** 2026-08-13
+- **Current phase:** Phase 5 in progress — CHUNK-043–045 done; CHUNK-046 (retro) next
+- **Last updated:** 2026-08-14
 - **Phase 5 target:** `/Users/stini/Ai_Dev_Home/Projects/Illima_Energy/illima-dashboard` (Laravel 11 + Filament v3, PHP)
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -913,8 +913,9 @@ learning/promotion, no Spec Kit/APM.
     passed. Docker verification confirmed to work completely unmodified as
     `loop.py`'s `--verify` argument, including the correct nonzero-exit
     signal when the target test file doesn't exist yet.
-- [ ] **CHUNK-045** — Real run: chunk 001.001.001 (Customer model spike)
+- [x] **CHUNK-045** — Real run: chunk 001.001.001 (Customer model spike)
   driven through `loop.py` against the real Illima Energy repo
+  ✅ 2026-08-14
   - Acceptance: run `phase1/loop.py` for real against
     `.../Illima_Energy/illima-dashboard`, using ticket 001.001's already-
     scoped chunk 001.001.001 (`Customer` model + migration + one test,
@@ -925,6 +926,26 @@ learning/promotion, no Spec Kit/APM.
   - Verify: real run transcript + resulting diff reviewed, saved to
     `phase5/notes/CHUNK-045.md`; full Illima Energy test suite green after
   - Deps: 044
+  - Findings: see `phase5/notes/CHUNK-045.md`. **First attempt hit a real,
+    significant integration bug**: CHUNK-043's git init put
+    `illima-dashboard` one level below the actual git toplevel; since
+    `loop.py` runs git with `cwd=repo`, a legitimate `--permit`ted new test
+    file was reported by git relative to the *outer* toplevel instead
+    (`illima-dashboard/tests/Unit/CustomerTest.php`), never matched the
+    `--permit` patterns, and the tamper guard fired on entirely permitted
+    work (exit 4). Fixed two ways: (1) restructured Illima Energy so
+    `illima-dashboard` has its own git repository (mirroring SisyphX's own
+    CHUNK-012 convention of not nesting repos); (2) hardened `loop.py`
+    itself with a startup precondition check (`git rev-parse
+    --show-toplevel` must equal `--repo`) that now fails fast with a clear
+    error instead of silently producing broken guard behavior — 3 new
+    tests. **Second attempt passed on iteration 1**: real `Customer` model,
+    migration, and a 2-test `CustomerModelTest.php`, independently
+    re-verified outside the loop (12→14 tests, 42→45 assertions, zero
+    regressions), diff hand-reviewed and found idiomatic and exactly
+    matching the chunk's acceptance criteria. Full SisyphX suite 117
+    passed. Real planner ticket/chunk statuses updated to reflect the
+    actual completed work.
 - [ ] **CHUNK-046** — Retro: Phase 5 findings + Phase 6 scoping
   - Acceptance: Phase 5 findings and recommendations recorded in
     `phase5/notes/CHUNK-046.md`; `PLAN.md` Status and Decision-log updated;
@@ -998,6 +1019,7 @@ renumbered now that Phase 5 itself is scoped:
 | 2026-08-13 | Phase 5 scoped: the user provided a real second project (`Illima Energy Dashboard`, Laravel/PHP), directly fulfilling the standing "second real project" and "second verification adapter language" recommendations carried since CHUNK-023. The project independently adopted SisyphX's own `experiments/planner/` format for its planning, with 22 real tickets and one `failed` ticket (004.013) that is a real instance of exactly the verification gap SisyphX exists to close (tests passed, browser behavior didn't). Scoped narrowly: prove the pipeline on one real, already-scoped, low-risk chunk (001.001.001) before doing more real tickets. |
 | 2026-08-13 | CHUNK-043: initialized git for Illima Energy (previously had no version control anywhere). Verified `.env` (real FMA credentials) is excluded and the Postman collection/`.env.example` contain only placeholder values before the initial commit. Confirmed a clean baseline: `php artisan test` passes (12 tests, 42 assertions) via the project's existing `illima-php:8.2` Docker image. |
 | 2026-08-13 | CHUNK-044 found and fixed two real, previously-hidden bugs in `phase2/tamper_guard.py` that predate PHP and applied to Python too, surfaced only while adding PHP test coverage: (1) `dir/**/*.ext`-shaped patterns never matched files directly under `dir/` (fnmatch's literal `/` requires a real subdirectory); (2) more significantly, `git status --porcelain` without `--untracked-files=all` collapses an entirely new, untracked directory into one line, making every file an agent creates inside a brand-new subdirectory (e.g. a fresh `tests/` folder) completely invisible to the tamper guard since Phase 2/CHUNK-020. Both fixed. `PROTECTED_PATTERNS` also widened with PHP/Composer/Laravel conventions. Docker-based `php artisan test` verification confirmed to work completely unmodified as `loop.py`'s `--verify` argument. |
+| 2026-08-14 | CHUNK-045 found a real, significant bug on the first real-project run: `--repo` must be the actual git toplevel, not a subdirectory of a larger repo, or `git status`'s reported paths (relative to the outer toplevel) never match `--permit` patterns (relative to `--repo`), causing the tamper guard to fire on entirely legitimate, permitted changes. Fixed by restructuring Illima Energy so `illima-dashboard` has its own git repository, and by hardening `loop.py` itself with a startup precondition check that now fails fast with a clear error instead of silently misclassifying legitimate work as tampering. Second attempt passed on iteration 1: real `Customer` model, migration, and test, independently re-verified (12→14 tests, zero regressions). SisyphX's first real chunk of real client work, in a different language than every prior phase, using the project's existing Docker-based test infrastructure completely unmodified. |
 
 ## Open questions
 
