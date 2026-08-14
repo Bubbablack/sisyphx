@@ -3,6 +3,14 @@
 
 Detects edits to protected paths (tests, verify config, CI, lock files) after
 an agent turn. Wired into the loop in CHUNK-020.
+
+CHUNK-044 (Phase 5) widened `PROTECTED_PATTERNS` to also recognize
+PHPUnit/Composer/Laravel conventions, per Design decision #3
+(verification adapters configurable per-project, not hardcoded to one
+language). This list already mixed ecosystem-agnostic entries (`Makefile`)
+with Python-specific ones (`pyproject.toml`); adding the PHP equivalents is
+a widening of the same list, not a new per-project configuration
+mechanism -- `permitted_paths` remains the per-chunk override point.
 """
 from __future__ import annotations
 
@@ -13,12 +21,21 @@ from pathlib import Path
 # Paths the agent is never allowed to touch unless explicitly allowlisted.
 # Keep globs in gitignore/fnmatch syntax.
 PROTECTED_PATTERNS: tuple[str, ...] = (
-    # test files
+    # test files (Python)
     "test_*.py",
     "*_test.py",
-    "tests/**/*.py",
+    "tests/*.py",  # fnmatch's `*` already crosses `/`, so this also
+                   # matches nested paths like tests/sub/test_foo.py --
+                   # `tests/**/*.py` looks more explicit but actually
+                   # requires a literal extra `/` and never matches files
+                   # directly under tests/ (found empirically in CHUNK-044
+                   # while adding PHP coverage; the bug predates PHP and
+                   # applied to Python too, just untested until now).
     "tests.py",
-    # verification config
+    # test files (PHP/PHPUnit -- CHUNK-044)
+    "*Test.php",
+    "tests/*.php",
+    # verification config (Python)
     "pyproject.toml",
     "pytest.ini",
     "conftest.py",
@@ -26,6 +43,11 @@ PROTECTED_PATTERNS: tuple[str, ...] = (
     "tox.ini",
     "noxfile.py",
     "setup.py",
+    # verification config (PHP/Composer/Laravel -- CHUNK-044)
+    "composer.json",
+    "composer.lock",
+    "phpunit.xml",
+    "phpunit.xml.dist",
     # CI / verify command config
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
@@ -82,8 +104,17 @@ def _changed_files(repo: Path, base: str) -> list[str]:
                 names.append(line)
 
     # Untracked files (the agent may have created new tests).
+    #
+    # CHUNK-044 (Phase 5) found a real bug here: without
+    # `--untracked-files=all`, git collapses an entirely new, untracked
+    # directory into a single line for the directory itself (e.g. `?? tests/`)
+    # instead of listing the files inside it -- so a new test file added
+    # inside a brand-new `tests/` directory was silently invisible to every
+    # protected-pattern check. Never caught before because every existing
+    # test happened to add new test files at the repo root, not inside a new
+    # subdirectory.
     status = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "--untracked-files=all"],
         cwd=repo,
         capture_output=True,
         text=True,

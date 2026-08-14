@@ -879,8 +879,8 @@ learning/promotion, no Spec Kit/APM.
     Docker image) passes on the fresh commit (12 passed, 42 assertions,
     matching `Dashboard_Plan.md`'s stated baseline)
   - Deps: —
-- [ ] **CHUNK-044** — Spike: PHP/Laravel-aware tamper guard + Docker-based
-  verification
+- [x] **CHUNK-044** — Spike: PHP/Laravel-aware tamper guard + Docker-based
+  verification ✅ 2026-08-13
   - Acceptance: `phase2/tamper_guard.py`'s `PROTECTED_PATTERNS` recognizes
     PHPUnit/Composer/Laravel conventions (`*Test.php`, `tests/**/*.php`,
     `composer.json`, `composer.lock`, `phpunit.xml`) alongside the existing
@@ -896,6 +896,23 @@ learning/promotion, no Spec Kit/APM.
     cases + one real manual Docker verification run against the actual
     Illima Energy repo
   - Deps: 043
+  - Findings: see `phase5/notes/CHUNK-044.md`. Widened `PROTECTED_PATTERNS`
+    with PHP/Composer/Laravel entries. **Found and fixed two real,
+    previously-hidden bugs in the tamper guard that predate PHP and applied
+    to Python too**: (1) `dir/**/*.ext`-shaped patterns never matched files
+    directly under `dir/` — `fnmatch`'s literal `/` between the star groups
+    requires an actual subdirectory, so `tests/**/*.py` silently missed
+    `tests/test_foo.py` (fixed: a single `tests/*.py` already crosses `/`
+    and covers both cases); (2) **a more significant find** —
+    `_changed_files()` used plain `git status --porcelain`, which collapses
+    an entirely new, untracked directory into one line for the directory
+    itself rather than listing files inside it, making every file an agent
+    creates inside a brand-new subdirectory (e.g. a fresh `tests/` folder)
+    completely invisible to every protected-pattern check since Phase 2
+    (fixed: added `--untracked-files=all`). 10 new tests; full suite 114
+    passed. Docker verification confirmed to work completely unmodified as
+    `loop.py`'s `--verify` argument, including the correct nonzero-exit
+    signal when the target test file doesn't exist yet.
 - [ ] **CHUNK-045** — Real run: chunk 001.001.001 (Customer model spike)
   driven through `loop.py` against the real Illima Energy repo
   - Acceptance: run `phase1/loop.py` for real against
@@ -980,6 +997,7 @@ renumbered now that Phase 5 itself is scoped:
 | 2026-08-13 | Phase 4 is complete. `phase4/plan_and_run.py` closes the property-test-authorship gap Phase 3 left open: a live agent authors a candidate test from acceptance criteria alone, the framework auto-generates a deterministic companion from the criteria's own literal examples, and per-individual-check meta-verification decides whether to trust the combination as `--verify-tier2` before ever running the implementer agent unprotected. Meta-verification and the existing recovery ladder — not trusting the agent's output directly — is what actually made the pipeline trustworthy against all three real failure modes found (too weak, never executes, too strict). |
 | 2026-08-13 | Phase 5 scoped: the user provided a real second project (`Illima Energy Dashboard`, Laravel/PHP), directly fulfilling the standing "second real project" and "second verification adapter language" recommendations carried since CHUNK-023. The project independently adopted SisyphX's own `experiments/planner/` format for its planning, with 22 real tickets and one `failed` ticket (004.013) that is a real instance of exactly the verification gap SisyphX exists to close (tests passed, browser behavior didn't). Scoped narrowly: prove the pipeline on one real, already-scoped, low-risk chunk (001.001.001) before doing more real tickets. |
 | 2026-08-13 | CHUNK-043: initialized git for Illima Energy (previously had no version control anywhere). Verified `.env` (real FMA credentials) is excluded and the Postman collection/`.env.example` contain only placeholder values before the initial commit. Confirmed a clean baseline: `php artisan test` passes (12 tests, 42 assertions) via the project's existing `illima-php:8.2` Docker image. |
+| 2026-08-13 | CHUNK-044 found and fixed two real, previously-hidden bugs in `phase2/tamper_guard.py` that predate PHP and applied to Python too, surfaced only while adding PHP test coverage: (1) `dir/**/*.ext`-shaped patterns never matched files directly under `dir/` (fnmatch's literal `/` requires a real subdirectory); (2) more significantly, `git status --porcelain` without `--untracked-files=all` collapses an entirely new, untracked directory into one line, making every file an agent creates inside a brand-new subdirectory (e.g. a fresh `tests/` folder) completely invisible to the tamper guard since Phase 2/CHUNK-020. Both fixed. `PROTECTED_PATTERNS` also widened with PHP/Composer/Laravel conventions. Docker-based `php artisan test` verification confirmed to work completely unmodified as `loop.py`'s `--verify` argument. |
 
 ## Open questions
 
