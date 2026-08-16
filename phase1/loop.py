@@ -56,6 +56,7 @@ from phase2.failure_signature import (
     failure_signature,
 )
 from phase2.recovery_ladder import decide_action, write_escalation_brief
+from phase2.review_marker_check import check_review_markers
 from phase2.tamper_guard import scan_tamper
 from phase3.verification_tiers import DEFAULT_TIER2_TIMEOUT_SECONDS
 
@@ -342,6 +343,23 @@ def run_loop(
             f"relative to --repo itself; a subdirectory repo will silently misclassify "
             f"legitimate changes as tampering. Give this directory its own git repository "
             f"(see phase5/notes/CHUNK-045.md for a real example of this exact failure). ==="
+        )
+        return 1
+
+    # CHUNK-048: review-marker startup precondition. One-shot, before
+    # iteration 1 -- not a per-iteration guard, per PLAN.md's Phase 6
+    # design (a diff-based check would silently stop seeing a marker once
+    # the diff base moved past it, since the loop commits every iteration
+    # regardless of outcome). Repo-wide, not `permitted_paths`-scoped, per
+    # CHUNK-047's decision.
+    review_ok, review_offending = check_review_markers(repo)
+    if not review_ok:
+        log("=== ERROR: unresolved REVIEW: markers found -- refusing to start ===")
+        for offense in review_offending:
+            log(f"    {offense}")
+        log(
+            "    Resolve these (see AGENTS.md's REVIEW: convention) before starting "
+            "a run -- either manually, or as an ordinary chunk through loop.py."
         )
         return 1
 

@@ -11,8 +11,8 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 5 complete — CHUNK-046 retro done; Phase 6 chunk-level scoping deferred
-- **Last updated:** 2026-08-14
+- **Current phase:** Phase 6 (pre-scoped candidates) — CHUNK-047/048 (review-marker guard) done; CHUNK-049 (planner review) next
+- **Last updated:** 2026-08-16
 - **Phase 5 target:** `/Users/stini/Ai_Dev_Home/Projects/Illima_Energy/illima-dashboard` (Laravel 11 + Filament v3, PHP)
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
 - **Contract doc:** `phase0/DEVIN_CLI_CONTRACT.md`
@@ -59,7 +59,7 @@ Core loop: **Plan → Execute → Verify → Recover → Learn → Improve.**
 | Capability | Reuse | SisyphX responsibility |
 |---|---|---|
 | Package management | APM | Approval and promotion |
-| Specification | GitHub Spec Kit | Import and validate chunks (artifacts only — Spec Kit is markdown/templates, not a callable API) |
+| ~~Specification~~ | ~~GitHub Spec Kit~~ | **Dropped 2026-08-15** — see decision log. Continuous, incremental planning (add chunks to an in-progress ticket over time) is a better fit for how this project actually works than Spec Kit's upfront feature-spec model. `experiments/planner/` is **approved for promotion** to fill this responsibility, pending a review pass for stronger implementation-chunk quality before it's formally promoted out of `experiments/`. |
 | Data contracts | Pydantic | Domain schemas |
 | State machines | `transitions` | Valid-state definitions |
 | Coding agent | Devin CLI | Runtime adapter |
@@ -993,8 +993,149 @@ renumbered now that Phase 5 itself is scoped:
   publication, monitoring, rollback.
 - Advanced verification: Testcontainers, MegaLinter, dependency scanning,
   mutation testing as an optional chunk/feature-level check (CHUNK-026).
+- **Review-marker check** (idea captured 2026-08-15, redesigned 2026-08-15
+  after finding a real problem with the first design, chunk-scoped as
+  CHUNK-047/048 below). Final design, after working through the
+  alternatives:
+  - **Not** a per-iteration guard wired into `phase1/loop.py`'s
+    `FailureSignature`/recovery-ladder machinery (the original idea).
+    That design was found to have a real bug before implementation: it
+    would have reused `tamper_guard.py`'s per-iteration `head_before` diff
+    base, but `loop.py` commits every iteration regardless of outcome, so
+    a marker left in iteration N would silently stop being flagged in
+    iteration N+1 once the diff base moved past it (tamper_guard never
+    hits this because tamper is a hard stop with no further iterations).
+  - Instead: a **one-shot startup precondition**, same pattern as
+    CHUNK-045's `--repo`-toplevel check. `loop.py` refuses to *begin* a
+    run (before iteration 1) if `REVIEW:` markers are present. This
+    fully avoids the diff-drift problem since it only ever runs once, at
+    a fixed point, against whatever the real current state is.
+  - Resolution is **not** special-cased infrastructure — a chunk to
+    resolve outstanding `REVIEW:` markers is just an ordinary chunk (real
+    `permitted_paths`, a verify command that can reuse the same checker
+    script), run through `loop.py` like any other implementation chunk,
+    or done manually/interactively. No new `FailureSignature` kind, no
+    retryable-vs-hard-block distinction needed — that entire question
+    from the first design is now moot.
+  - **A Devin CLI skill to help resolve markers on demand is wanted as a
+    complement to this check, but will be authored by the user separately
+    later — not part of CHUNK-047/048, and not being built by the agent
+    now.** `AGENTS.md`'s existing manual `REVIEW:` convention already
+    covers ad hoc resolution in the meantime.
+  - Open implementation detail, not yet decided: scan the whole repo, or
+    only the chunk's `permitted_paths`? Whole-repo is simpler but blunter
+    (an unrelated stray `REVIEW:` blocks every future chunk); scoped is
+    more surgical but needs `permitted_paths` threaded into the checker.
+    Left for CHUNK-047's spike to resolve.
 - Durability & UI: Postgres, DBOS, Phoenix, additional agent adapters.
 - A concrete second target project/use case, once one exists.
+
+#### Pre-scoped candidate chunks (2026-08-15, ahead of official Phase 6 start)
+
+Chunk-scoped at the user's request, mirroring the spike-then-implement
+pattern every prior phase used (CHUNK-013–016 before 017–022, CHUNK-034–036
+before 037–042). Numbers are provisional (next available after CHUNK-046)
+and will be renumbered if other Phase 6 chunks are scoped first when Phase
+6 officially starts.
+
+- [x] **CHUNK-047** — Spike: confirm `REVIEW:` marker detection approach
+  ✅ 2026-08-16
+  - Acceptance: a small script confirms a straightforward repo-wide (or
+    `permitted_paths`-scoped -- this chunk decides which) grep-style scan
+    for a `REVIEW:` marker works without excessive false positives (e.g. a
+    `REVIEW:` marker inside a string literal or unrelated context) on a
+    handful of realistic fixtures, before committing to the
+    implementation chunk's design. Explicitly NOT diff-based against
+    `head_before` -- CHUNK-020/044's per-iteration diff primitive was
+    considered and rejected: `loop.py` commits every iteration regardless
+    of outcome, so a diff-based check would silently stop seeing a marker
+    left in an earlier iteration once the diff base moved past it. This
+    check scans real current-state files directly instead.
+  - Verify: manual review of spike output against 3-5 hand-built fixtures
+    (clean, one file with a `REVIEW:` marker, one `REVIEW:` inside a
+    string/docstring to test for false positives)
+  - Deps: none
+  - Findings: see `phase6/notes/CHUNK-047.md` and `phase6/run_chunk_047.py`.
+    All 5 hand-built fixtures matched expectation (comment-leader-adjacent
+    regex, restricted to source-code file extensions, never `.md`).
+    **Real, non-hypothetical finding**: a naive repo-wide text grep for the
+    tag is unsafe in this repo *today* — `PLAN.md`, `AGENTS.md`, and
+    `experiments/planner/BRIEF.md` all discuss the convention itself in
+    prose/fenced examples (20 combined matches); the extension filter
+    sidesteps this for free. A second instance of the same false-positive
+    class recurred *inside* a code file while authoring the spike's own
+    explanatory comment (fixed by rephrasing) — recorded as an accepted,
+    bounded limitation: a code comment discussing the tag by name will
+    false-positive. **Decision: repo-wide, not `permitted_paths`-scoped**
+    — scoping would let the loop start new automated work while a flagged
+    concern sits unresolved just outside the chunk's declared scope,
+    defeating the precondition's purpose; the extension filter already
+    does the bulk of practical false-positive avoidance.
+
+- [x] **CHUNK-048** — Review-marker startup precondition in `loop.py`
+  ✅ 2026-08-16
+  - Acceptance: new `phase2/review_marker_check.py` scans for `REVIEW:`
+    markers (per CHUNK-047's chosen scope) and returns/exits non-zero with
+    the offending paths/lines if any are found. Wired into
+    `phase1/loop.py` as a **one-shot startup precondition** -- checked
+    once, before iteration 1 begins, same pattern as CHUNK-045's
+    `--repo`-toplevel fail-fast check -- NOT as a per-iteration guard and
+    NOT as a new `FailureSignature` kind; `loop.py` simply refuses to
+    start the run at all while markers are present. Resolving markers is
+    explicitly out of scope for this chunk: it is handled either by an
+    ordinary chunk run through `loop.py` (whose verify command can reuse
+    this same checker script) or manually/interactively. A Devin CLI
+    skill to help with on-demand resolution is wanted as a complement to
+    this check but will be authored by the user separately, later --
+    not part of this chunk.
+  - Verify: `pytest` for the new checker script (clean/dirty/false-positive
+    cases per CHUNK-047's fixtures), plus one real attempt to start
+    `loop.py` against a repo with a `REVIEW:` marker present, confirming
+    it refuses to start with a clear error before any agent iteration runs
+  - Deps: 047
+  - Findings: see `phase2/notes/CHUNK-048.md`, `phase2/review_marker_check.py`,
+    and `phase2/test_review_marker_check.py`. Promoted CHUNK-047's spike
+    unchanged (source-extension filter, comment-leader-adjacent regex,
+    repo-wide walk); wired into `phase1/loop.py` immediately after the
+    existing `--repo`-toplevel check, returning exit `1` with every
+    offending `path:line: text` logged, same "fail before anything
+    starts" posture as that check -- not a `FailureSignature` kind, not
+    routed through the recovery ladder. 8 new unit tests plus 2 real
+    `run_loop` integration tests (blocks on a real marker with zero
+    commits/log-file written; does not block on a marker present only in
+    a `.md` file); full suite 119 passed. **Real manual CLI run**
+    confirmed the exact required behavior: a scratch repo with a genuine
+    `# REVIEW: ...` marker refused to start with a clear error and exit
+    code 1, with no `.agent-state/` directory created at all (i.e. zero
+    agent iterations ran).
+
+- [ ] **CHUNK-049** — Review pass: `experiments/planner/` chunk-quality
+  review, ahead of promotion
+  - Acceptance: identify concretely what makes today's chunk format
+    produce weak vs. strong inputs to `loop.py` (acceptance-criteria
+    specificity, verify-command precision, `permitted_paths`/
+    `prohibited_changes` scoping, etc.), informed by real usage evidence
+    (Phase 5's real chunk, Illima Energy's 22 real tickets including the
+    `failed` 004.013 one) rather than speculation. Produces either a
+    revised chunk template/format or a documented decision that the
+    current format is already strong enough. This chunk decides *whether
+    and how* to promote `experiments/planner/` out of `experiments/` per
+    the 2026-08-15 approval — promotion itself is a separate follow-up
+    once this review concludes.
+  - Verify: manual review — re-author 2-3 of Illima Energy's existing real
+    tickets/chunks against any proposed revised format and compare
+    resulting chunk quality against the originals
+  - Deps: none (independent of 047/048; ordered after them per the
+    2026-08-15 priority decision, not a technical dependency)
+
+**Priority order, decided 2026-08-15:** CHUNK-047/048 (review-marker
+guard) first, then CHUNK-049 (planner review/promotion decision). The
+UI/browser verification tier gap (`004.013`) is explicitly deferred
+further out on purpose — it's a real production concern, not a
+non-issue, but the priority right now is a workable, trustworthy core
+system first. Expect it to expand into multiple chunks once picked up
+(a single visual-regression/browser tier is unlikely to be one chunk),
+so deliberately not scoping it yet.
 
 ---
 
@@ -1033,6 +1174,9 @@ renumbered now that Phase 5 itself is scoped:
 | 2026-08-13 | CHUNK-044 found and fixed two real, previously-hidden bugs in `phase2/tamper_guard.py` that predate PHP and applied to Python too, surfaced only while adding PHP test coverage: (1) `dir/**/*.ext`-shaped patterns never matched files directly under `dir/` (fnmatch's literal `/` requires a real subdirectory); (2) more significantly, `git status --porcelain` without `--untracked-files=all` collapses an entirely new, untracked directory into one line, making every file an agent creates inside a brand-new subdirectory (e.g. a fresh `tests/` folder) completely invisible to the tamper guard since Phase 2/CHUNK-020. Both fixed. `PROTECTED_PATTERNS` also widened with PHP/Composer/Laravel conventions. Docker-based `php artisan test` verification confirmed to work completely unmodified as `loop.py`'s `--verify` argument. |
 | 2026-08-14 | CHUNK-045 found a real, significant bug on the first real-project run: `--repo` must be the actual git toplevel, not a subdirectory of a larger repo, or `git status`'s reported paths (relative to the outer toplevel) never match `--permit` patterns (relative to `--repo`), causing the tamper guard to fire on entirely legitimate, permitted changes. Fixed by restructuring Illima Energy so `illima-dashboard` has its own git repository, and by hardening `loop.py` itself with a startup precondition check that now fails fast with a clear error instead of silently misclassifying legitimate work as tampering. Second attempt passed on iteration 1: real `Customer` model, migration, and test, independently re-verified (12→14 tests, zero regressions). SisyphX's first real chunk of real client work, in a different language than every prior phase, using the project's existing Docker-based test infrastructure completely unmodified. |
 | 2026-08-14 | Phase 5 is complete. Every one of its three chunks found and fixed a real bug rather than being purely additive: the tamper guard had two independent latent bugs since Phase 2 (neither PHP-specific — an fnmatch directory-globbing gap and a `git status --untracked-files=all` gap), and `loop.py` had an unvalidated repo-toplevel precondition every prior use had satisfied only by construction. Once fixed, the core loop/guard/verify machinery needed zero further changes to complete real, correct client work on a real Laravel/PHP codebase — the `--verify` contract (an arbitrary shell command) was already general enough. The real project's own `004.013` ticket (tests passed, browser didn't) remains an unaddressed, concrete candidate for Phase 6. |
+| 2026-08-15 | Dropped GitHub Spec Kit as the intended Specification-capability reuse (see "Reuse vs. build" table). Spec Kit's model is upfront, feature-sized spec authoring; real usage (Phase 5, Illima Energy independently converging on `experiments/planner/`'s own format) showed a continuous, incremental planning style — add chunks to an in-progress ticket over time — is a better fit for how this project actually works, and needed zero translation to drive `loop.py` on real work. `experiments/planner/` is **approved for promotion** to fill the Control plane's planning responsibility in place of Spec Kit, but not yet formally promoted out of `experiments/` — a review pass for stronger implementation-chunk quality is wanted first. Roadmap position of that promotion work is still undecided (open question, not yet prioritized against Phase 6 candidates). |
+| 2026-08-16 | CHUNK-047's spike found a naive repo-wide text grep for `REVIEW:` is unsafe in this repo *today*: `PLAN.md`, `AGENTS.md`, and `experiments/planner/BRIEF.md` all discuss the convention itself in prose/fenced examples (20 combined pre-existing matches) and would permanently false-positive. Restricting the scan to source-code file extensions (never `.md`) fixes this for free; a second, narrower instance of the same false-positive class (a code comment discussing the tag by name) was found and documented as an accepted, bounded limitation rather than solved. **Decision: the review-marker precondition scans repo-wide, not scoped to a chunk's `permitted_paths`** — scoping would let the loop start new automated work while a flagged concern sits unresolved just outside that scope. |
+| 2026-08-16 | CHUNK-048 wired the review-marker check into `phase1/loop.py` as a one-shot startup precondition (exit 1, same posture as CHUNK-045's `--repo`-toplevel check) rather than a per-iteration guard or new `FailureSignature` kind, closing out the Phase 6 pre-scoped review-marker-guard work (CHUNK-047/048). Confirmed with a real CLI run: a scratch repo with a genuine marker refused to start with zero agent iterations and zero `.agent-state/` writes. |
 
 ## Open questions
 
@@ -1113,6 +1257,19 @@ renumbered now that Phase 5 itself is scoped:
   agent-authored properties (CHUNK-041's object-identity finding), and
   whether such a refinement itself needs empirical validation rather than
   being taken on faith.
+- [ ] **`experiments/planner/` promotion, approved but not scheduled.**
+  Approved 2026-08-15 to replace GitHub Spec Kit as the Control plane's
+  planning mechanism (see Decision log), but not yet formally promoted out
+  of `experiments/`. Two things need deciding before/at promotion time,
+  neither resolved yet:
+  1. A review pass for stronger implementation-chunk quality — what
+     specifically is weak about today's chunk format/acceptance-criteria
+     authoring, and what would make chunks more reliably strong inputs to
+     `loop.py`.
+  2. Roadmap position — not yet prioritized against the Phase 6 candidate
+     chunks (CHUNK-047/048, review-marker guard) or the UI/browser
+     verification tier gap. Could go before, after, or interleaved with
+     either.
 
 ---
 

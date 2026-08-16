@@ -80,6 +80,54 @@ def test_run_loop_accepts_repo_that_is_the_git_toplevel(real_repo, monkeypatch):
     assert exit_code == 0
 
 
+# -- CHUNK-048: review-marker startup precondition ---------------------------
+
+
+def test_run_loop_refuses_to_start_with_review_marker_present(real_repo):
+    """A real, on-disk `REVIEW:` marker (per AGENTS.md's convention) must
+    stop the run before iteration 1 -- no agent invocation, no commit."""
+    (real_repo / "app.py").write_text(
+        "def retry_call():\n"
+        "    # REVIEW: this retry loop has no backoff, can hammer the API -- fix?\n"
+        "    pass\n"
+    )
+    head_before = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=real_repo, capture_output=True, text=True
+    ).stdout.strip()
+
+    exit_code = run_loop(
+        repo=real_repo, task_text="fix it", verify_cmd="true", max_iterations=1, log=lambda *a: None,
+    )
+    assert exit_code == 1
+
+    head_after = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=real_repo, capture_output=True, text=True
+    ).stdout.strip()
+    assert head_after == head_before  # nothing committed
+    assert not (real_repo / ".agent-state" / "runs" / "log.jsonl").exists()
+
+
+def test_run_loop_proceeds_when_review_marker_is_only_in_markdown(real_repo, monkeypatch):
+    """A `REVIEW:` mention inside a markdown doc (prose/fenced example, per
+    CHUNK-047's finding about this repo's own PLAN.md/AGENTS.md) must not
+    block a run -- only source-code files are scanned."""
+    (real_repo / "NOTES.md").write_text(
+        "Leave feedback with a `REVIEW:` tag, e.g. `# REVIEW: fix this`.\n"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=real_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add notes"], cwd=real_repo, check=True)
+
+    monkeypatch.setattr(
+        loop, "run_devin",
+        lambda repo, text, timeout, run_dir: (0, False, 'SISYPHX_STATUS: {"outcome": "done"}', ""),
+    )
+    monkeypatch.setattr(loop, "run_verification", lambda repo, cmd, timeout: (0, "ok"))
+    exit_code = run_loop(
+        repo=real_repo, task_text="fix it", verify_cmd="true", max_iterations=1, log=lambda *a: None,
+    )
+    assert exit_code == 0
+
+
 # -- read_log schema tests ---------------------------------------------------
 
 
