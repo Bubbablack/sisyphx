@@ -11,7 +11,7 @@ never reuse a number, even if a chunk is dropped.
 
 ## Status
 
-- **Current phase:** Phase 6 (pre-scoped candidates) — CHUNK-047/048 (review-marker guard) done; CHUNK-049 (planner review) next
+- **Current phase:** Phase 6 (pre-scoped candidates) — CHUNK-047/048 (review-marker guard) and CHUNK-049 (planner review) all done; further Phase 6 chunk-level scoping still deferred
 - **Last updated:** 2026-08-16
 - **Phase 5 target:** `/Users/stini/Ai_Dev_Home/Projects/Illima_Energy/illima-dashboard` (Laravel 11 + Filament v3, PHP)
 - **Repo root:** `/Users/stini/Ai_Dev_Home/SisyphX`
@@ -59,7 +59,7 @@ Core loop: **Plan → Execute → Verify → Recover → Learn → Improve.**
 | Capability | Reuse | SisyphX responsibility |
 |---|---|---|
 | Package management | APM | Approval and promotion |
-| ~~Specification~~ | ~~GitHub Spec Kit~~ | **Dropped 2026-08-15** — see decision log. Continuous, incremental planning (add chunks to an in-progress ticket over time) is a better fit for how this project actually works than Spec Kit's upfront feature-spec model. `experiments/planner/` is **approved for promotion** to fill this responsibility, pending a review pass for stronger implementation-chunk quality before it's formally promoted out of `experiments/`. |
+| ~~Specification~~ | ~~GitHub Spec Kit~~ | **Dropped 2026-08-15** — see decision log. Continuous, incremental planning (add chunks to an in-progress ticket over time) is a better fit for how this project actually works than Spec Kit's upfront feature-spec model. `experiments/planner/` is **approved for promotion** to fill this responsibility; CHUNK-049 (2026-08-16) reviewed real usage and confirmed the format is sound (revised to add a required `## Manual verification` section), but deliberately deferred the actual move out of `experiments/` until more real chunks have run through `loop.py` — see PLAN.md's decision log. |
 | Data contracts | Pydantic | Domain schemas |
 | State machines | `transitions` | Valid-state definitions |
 | Coding agent | Devin CLI | Runtime adapter |
@@ -1109,8 +1109,8 @@ and will be renumbered if other Phase 6 chunks are scoped first when Phase
     code 1, with no `.agent-state/` directory created at all (i.e. zero
     agent iterations ran).
 
-- [ ] **CHUNK-049** — Review pass: `experiments/planner/` chunk-quality
-  review, ahead of promotion
+- [x] **CHUNK-049** — Review pass: `experiments/planner/` chunk-quality
+  review, ahead of promotion ✅ 2026-08-16
   - Acceptance: identify concretely what makes today's chunk format
     produce weak vs. strong inputs to `loop.py` (acceptance-criteria
     specificity, verify-command precision, `permitted_paths`/
@@ -1127,6 +1127,33 @@ and will be renumbered if other Phase 6 chunks are scoped first when Phase
     resulting chunk quality against the originals
   - Deps: none (independent of 047/048; ordered after them per the
     2026-08-15 priority decision, not a technical dependency)
+  - Findings: see `phase6/notes/CHUNK-049.md` and
+    `phase6/chunk049_reauthored/`. **Real finding #1**: of Illima Energy's
+    22 real tickets, only 4 early foundational ones were ever decomposed
+    into the documented chunk format at all, and only **one chunk total**
+    (`001.001.001`, Phase 5) has ever actually run through `loop.py` —
+    every shipped dashboard feature, including the failed `004.013`, was
+    done as a single ticket-level task outside the chunk format entirely.
+    **Real finding #2**: where the chunk format was used, its structural
+    fields (`permitted_paths`/`prohibited_changes`/`Verification`) are
+    already tight and need no revision — Phase 5's only real defects were
+    in `loop.py`/`tamper_guard.py`, never in chunk content. **Real
+    finding #3, the one load-bearing gap**: every chunk touching Filament
+    UI relies solely on "Feature tests pass," the exact shape of gap
+    `004.013` hit for real (tests passed, browser didn't) — and that
+    ticket's browser-check acceptance criterion was only added *after*
+    the failure. Re-authored 3 real chunks (2 real still-`planned` ones
+    plus a retroactive `004.013` version) adding a required `## Manual
+    verification` section; structural fields were unchanged in all three,
+    confirming finding #2. **Decision: revise `BRIEF.md` in place**
+    (required `## Manual verification` section per chunk, excluded from
+    the generated agent prompt, explicitly a stopgap for — not a
+    replacement of — the still-deferred automated UI/browser tier).
+    **Promotion: the format itself is sound enough to promote, but the
+    move out of `experiments/` is deliberately deferred further** until
+    more real chunks (including UI-facing ones using the new field) have
+    actually run through `loop.py` — one successful automated run is too
+    thin an evidence base to promote on now.
 
 **Priority order, decided 2026-08-15:** CHUNK-047/048 (review-marker
 guard) first, then CHUNK-049 (planner review/promotion decision). The
@@ -1177,6 +1204,7 @@ so deliberately not scoping it yet.
 | 2026-08-15 | Dropped GitHub Spec Kit as the intended Specification-capability reuse (see "Reuse vs. build" table). Spec Kit's model is upfront, feature-sized spec authoring; real usage (Phase 5, Illima Energy independently converging on `experiments/planner/`'s own format) showed a continuous, incremental planning style — add chunks to an in-progress ticket over time — is a better fit for how this project actually works, and needed zero translation to drive `loop.py` on real work. `experiments/planner/` is **approved for promotion** to fill the Control plane's planning responsibility in place of Spec Kit, but not yet formally promoted out of `experiments/` — a review pass for stronger implementation-chunk quality is wanted first. Roadmap position of that promotion work is still undecided (open question, not yet prioritized against Phase 6 candidates). |
 | 2026-08-16 | CHUNK-047's spike found a naive repo-wide text grep for `REVIEW:` is unsafe in this repo *today*: `PLAN.md`, `AGENTS.md`, and `experiments/planner/BRIEF.md` all discuss the convention itself in prose/fenced examples (20 combined pre-existing matches) and would permanently false-positive. Restricting the scan to source-code file extensions (never `.md`) fixes this for free; a second, narrower instance of the same false-positive class (a code comment discussing the tag by name) was found and documented as an accepted, bounded limitation rather than solved. **Decision: the review-marker precondition scans repo-wide, not scoped to a chunk's `permitted_paths`** — scoping would let the loop start new automated work while a flagged concern sits unresolved just outside that scope. |
 | 2026-08-16 | CHUNK-048 wired the review-marker check into `phase1/loop.py` as a one-shot startup precondition (exit 1, same posture as CHUNK-045's `--repo`-toplevel check) rather than a per-iteration guard or new `FailureSignature` kind, closing out the Phase 6 pre-scoped review-marker-guard work (CHUNK-047/048). Confirmed with a real CLI run: a scratch repo with a genuine marker refused to start with zero agent iterations and zero `.agent-state/` writes. |
+| 2026-08-16 | CHUNK-049 found that of Illima Energy's 22 real tickets, only 4 were ever decomposed into the documented chunk format at all, and only one chunk total has ever actually run through `loop.py` (Phase 5's `001.001.001`) — every shipped feature, including the failed `004.013`, was done as a single ticket-level task outside the chunk format entirely. Where the format *was* used its structural fields needed no revision, but every UI-touching chunk relied solely on "tests pass," the exact shape of `004.013`'s real failure (tests passed, browser didn't) — and that ticket's browser-check criterion was only added after the failure, not before. `experiments/planner/BRIEF.md` revised in place to require a `## Manual verification` section per chunk (excluded from the generated agent prompt) as a stopgap for the still-deferred automated UI/browser tier. **Decision: the format is sound enough to promote out of `experiments/`, but the move itself is deliberately deferred further** until more real chunks — including UI-facing ones using the new field — have actually run through `loop.py`; one successful automated run is too thin an evidence base to promote on now. |
 
 ## Open questions
 
